@@ -83,6 +83,10 @@ api_get() {
     "$1"
 }
 
+release_tag_from_json() {
+  sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$1" | head -1
+}
+
 preview_key() {
   local value="${1#v}"
   local core="${value%%-*}"
@@ -99,24 +103,31 @@ if [[ -n "$VERSION" ]]; then
   api_get "$API_BASE/releases/tags/$TAG" >"$TEMP_DIR/release.json"
 elif [[ "$CHANNEL" == "stable" ]]; then
   api_get "$API_BASE/releases/latest" >"$TEMP_DIR/release.json"
-  TAG="$(sed -n 's/^[[:space:]]*"tag_name":[[:space:]]*"\([^"]*\)".*/\1/p' "$TEMP_DIR/release.json" | head -1)"
+  TAG="$(release_tag_from_json "$TEMP_DIR/release.json")"
 else
   api_get "$API_BASE/releases?per_page=30" >"$TEMP_DIR/releases.json"
   awk '
-    /^[[:space:]]{4}"tag_name":/ {
+    {
+      gsub(/"tag_name"[[:space:]]*:/, "\n\"tag_name\":")
+      gsub(/"draft"[[:space:]]*:/, "\n\"draft\":")
+      gsub(/"prerelease"[[:space:]]*:/, "\n\"prerelease\":")
+      print
+    }
+  ' "$TEMP_DIR/releases.json" | awk '
+    /^[[:space:]]*"tag_name":/ {
       line = $0
       sub(/.*"tag_name":[[:space:]]*"/, "", line)
       sub(/".*/, "", line)
       tag = line
     }
-    /^[[:space:]]{4}"draft":[[:space:]]*false/ { draft = 0 }
-    /^[[:space:]]{4}"draft":[[:space:]]*true/ { draft = 1 }
-    /^[[:space:]]{4}"prerelease":[[:space:]]*true/ {
+    /^[[:space:]]*"draft":[[:space:]]*false/ { draft = 0 }
+    /^[[:space:]]*"draft":[[:space:]]*true/ { draft = 1 }
+    /^[[:space:]]*"prerelease":[[:space:]]*true/ {
       if (!draft && tag != "") print tag
       tag = ""
       draft = 0
     }
-  ' "$TEMP_DIR/releases.json" >"$TEMP_DIR/preview-tags"
+  ' >"$TEMP_DIR/preview-tags"
   TAG=""
   BEST_KEY=""
   while IFS= read -r candidate; do
