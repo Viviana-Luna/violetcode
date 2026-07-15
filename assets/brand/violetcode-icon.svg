@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-labelledby="title description">
+  <title id="title">VioletCode 产品图标</title>
+  <desc id="description">深色圆角方形中的五瓣紫罗兰花，花心包含代码尖括号</desc>
+  <defs>
+    <linearGradient id="background" x1="128" y1="96" x2="896" y2="928" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#171024"/>
+      <stop offset="1" stop-color="#08060D"/>
+    </linearGradient>
+    <linearGradient id="petal" x1="512" y1="172" x2="512" y2="560" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#D6C2FF"/>
+      <stop offset="0.48" stop-color="#A875FF"/>
+      <stop offset="1" stop-color="#7540D6"/>
+    </linearGradient>
+    <radialGradient id="center" cx="0" cy="0" r="1" gradientTransform="translate(512 512) rotate(90) scale(128)" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F4EEFF"/>
+      <stop offset="0.55" stop-color="#C39BFF"/>
+      <stop offset="1" stop-color="#7B46D8"/>
+    </radialGradient>
+    <filter id="glow" x="102" y="92" width="820" height="840" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feGaussianBlur stdDeviation="20"/>
+    </filter>
+    <path id="petal-shape" d="M512 468C430 432 390 344 420 264C438 216 472 174 512 142C552 174 586 216 604 264C634 344 594 432 512 468Z"/>
+  </defs>
+  <rect x="24" y="24" width="976" height="976" rx="220" fill="url(#background)"/>
+  <rect x="45" y="45" width="934" height="934" rx="199" fill="none" stroke="#B994FF" stroke-opacity="0.28" stroke-width="6"/>
+  <g opacity="0.32" filter="url(#glow)" fill="#9E68FF">
+    <use href="#petal-shape"/>
+    <use href="#petal-shape" transform="rotate(72 512 512)"/>
+    <use href="#petal-shape" transform="rotate(144 512 512)"/>
+    <use href="#petal-shape" transform="rotate(216 512 512)"/>
+    <use href="#petal-shape" transform="rotate(288 512 512)"/>
+  </g>
+  <g fill="url(#petal)" stroke="#E8DCFF" stroke-opacity="0.44" stroke-width="8" stroke-linejoin="round">
+    <use href="#petal-shape"/>
+    <use href="#petal-shape" transform="rotate(72 512 512)"/>
+    <use href="#petal-shape" transform="rotate(144 512 512)"/>
+    <use href="#petal-shape" transform="rotate(216 512 512)"/>
+    <use href="#petal-shape" transform="rotate(288 512 512)"/>
+  </g>
+  <circle cx="512" cy="512" r="126" fill="url(#center)" stroke="#F5F0FF" stroke-opacity="0.7" stroke-width="8"/>
+  <path d="M493 466L443 512L493 558" fill="none" stroke="#171024" stroke-width="30" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M531 466L581 512L531 558" fill="none" stroke="#171024" stroke-width="30" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

@@ -1,0 +1,16 @@
+node_modules/
+dist/
+coverage/
+.DS_Store
+*.log
+.env
+.env.*
+/.agent/
+
+# 运行时目录
+/.superpowers/
+/.violet/
+restored-src/.violet-sandbox/
+restored-src/.violet-verify/
+restored-src/.violet-debug-repro/
+restored-src/.violet-debug-repro2/

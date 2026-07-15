@@ -1,0 +1,23 @@
+NOTICE AND MODIFICATION LICENSE
+
+本仓库包含源自 Anthropic Claude Code CLI 的代码。
+
+原始 Claude Code 源码属于专有软件：
+Copyright (c) Anthropic PBC. All rights reserved.
+其使用受 Anthropic 适用条款约束。
+
+本仓库还包含 OpenClaude 社区贡献者的修改：
+Copyright (c) 2026 OpenClaude contributors（仅限其修改部分）。
+
+VioletCode 贡献者的修改和新增内容，在法律允许且贡献者拥有相应权利的范围内，按以下 MIT 条款提供：
+
+MIT License
+Copyright (c) 2026 VioletCode contributors（仅限其修改部分）
+
+特此免费授予获得 VioletCode 贡献者修改副本的任何人不受限制地处理这些修改的权利，包括但不限于使用、复制、修改、合并、发布、分发、再许可和/或销售副本的权利，但须满足以下条件：
+
+上述版权声明和本许可声明应包含在这些修改的所有副本或实质性部分中。
+
+这些修改按“原样”提供，不附带任何明示或默示保证，包括但不限于适销性、特定用途适用性和不侵权保证。在任何情况下，作者或版权持有人均不对因这些修改或其使用产生的任何索赔、损害或其他责任负责。
+
+底层派生代码仍受 Anthropic 的版权约束；OpenClaude 贡献者修改部分还受其仓库许可声明约束。本项目没有 Anthropic 对其专有源码分发的授权。使用者和贡献者应自行评估其法律地位。

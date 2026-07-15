@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title description">
+  <title id="title">VioletCode 单色标记</title>
+  <desc id="description">五瓣紫罗兰花与代码尖括号</desc>
+  <defs>
+    <path id="petal" d="M256 232C215 214 195 170 210 130C219 106 236 85 256 69C276 85 293 106 302 130C317 170 297 214 256 232Z"/>
+  </defs>
+  <g fill="currentColor">
+    <use href="#petal"/>
+    <use href="#petal" transform="rotate(72 256 256)"/>
+    <use href="#petal" transform="rotate(144 256 256)"/>
+    <use href="#petal" transform="rotate(216 256 256)"/>
+    <use href="#petal" transform="rotate(288 256 256)"/>
+  </g>
+  <circle cx="256" cy="256" r="63" fill="currentColor"/>
+  <path d="M247 233L222 256L247 279M265 233L290 256L265 279" fill="none" stroke="#fff" stroke-width="15" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

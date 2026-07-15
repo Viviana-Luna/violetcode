@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SOURCE_PATH="${BASH_SOURCE[0]}"
+while [[ -L "$SOURCE_PATH" ]]; do
+  SOURCE_DIR="$(cd -P "$(dirname "$SOURCE_PATH")" && pwd)"
+  SOURCE_PATH="$(readlink "$SOURCE_PATH")"
+  [[ "$SOURCE_PATH" != /* ]] && SOURCE_PATH="$SOURCE_DIR/$SOURCE_PATH"
+done
+
+ROOT_DIR="$(cd -P "$(dirname "$SOURCE_PATH")" && pwd)"
+
+case "${1:-}" in
+  install)
+    shift
+    exec "$ROOT_DIR/scripts/install-source.sh" "$@"
+    ;;
+  update)
+    shift
+    exec "$ROOT_DIR/scripts/update-source.sh" "$@"
+    ;;
+esac
+
+export VIOLET_CONFIG_DIR="${VIOLET_CONFIG_DIR:-$HOME/.violet}"
+
+exec bun --preload "$ROOT_DIR/macro-shim.cjs" "$ROOT_DIR/src/entrypoints/cli.tsx" "$@"
