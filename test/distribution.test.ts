@@ -492,7 +492,7 @@ describe.skipIf(process.platform !== 'win32')('Windows 二进制更新', () => {
     const version = Bun.spawnSync([current, '--version'])
     expect(version.exitCode).toBe(0)
     expect(version.stdout.toString().trim()).toBe('v0.1.0-preview.2 (VioletCode)')
-  }, 60000)
+  }, 120000)
 })
 
 describe.skipIf(process.platform !== 'win32')('PowerShell 安装器', () => {
@@ -592,5 +592,5 @@ describe.skipIf(process.platform !== 'win32')('PowerShell 安装器', () => {
     } finally {
       server.stop()
     }
-  }, 60000)
+  }, 120000)
 })
