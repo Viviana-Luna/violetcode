@@ -114,7 +114,7 @@ describe('源码安装与更新生命周期', () => {
     })
 
     expect(result.exitCode).toBe(0)
-    expect(result.stdout.trim()).toBe('v0.1.0 (VioletCode)')
+    expect(result.stdout.trim()).toBe('v0.1.0-preview.1 (VioletCode)')
   })
 
   test('顶层帮助标题使用简体中文', async () => {
