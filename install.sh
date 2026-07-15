@@ -63,7 +63,14 @@ case "$OS/$ARCH" in
     fi
     ;;
   *)
-    echo "错误：当前平台没有 VioletCode 发布包：$OS/$ARCH" >&2
+    case "$OS" in
+      MINGW*|MSYS*|CYGWIN*)
+        echo "错误：Windows 请使用 install.ps1：powershell -ExecutionPolicy Bypass -File install.ps1 -Channel $CHANNEL" >&2
+        ;;
+      *)
+        echo "错误：当前平台没有 VioletCode 发布包：$OS/$ARCH" >&2
+        ;;
+    esac
     exit 1
     ;;
 esac

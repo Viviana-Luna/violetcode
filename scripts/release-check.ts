@@ -8,7 +8,9 @@ const skipAudit = Bun.argv.includes('--skip-audit')
 const configDir = await mkdtemp(join(tmpdir(), 'violet-release-check-'))
 const buildDir = await mkdtemp(join(tmpdir(), 'violet-release-build-'))
 const nativeTarget = `bun-${process.platform}-${process.arch}`
-const builtExecutable = join(buildDir, 'violet')
+const builtExecutable = join(buildDir, process.platform === 'win32' ? 'violet.exe' : 'violet')
+// Windows 无法直接 spawn 无扩展名的 bash 启动器，需经 bash 调用；macOS/Linux 维持直接调用。
+const devLauncher = process.platform === 'win32' ? ['bash', './violet'] : ['./violet']
 
 type Check = {
   name: string
@@ -26,12 +28,12 @@ const checks: Check[] = [
   { name: 'Git 补丁格式', command: ['git', 'diff', '--check'] },
   {
     name: 'CLI 帮助',
-    command: ['./violet', '--help'],
+    command: [...devLauncher, '--help'],
     env: { VIOLET_CONFIG_DIR: configDir },
   },
   {
     name: 'CLI 版本',
-    command: ['./violet', '--version'],
+    command: [...devLauncher, '--version'],
     env: { VIOLET_CONFIG_DIR: configDir },
   },
   {

@@ -250,6 +250,19 @@ function forceExit(exitCode: number): never {
           },
         })
         libc.symbols._exit(exitCode)
+      } else if (process.platform === 'win32') {
+        // Windows 无 POSIX _exit；process.kill(SIGKILL) 的信号模拟会丢退出码
+        //（无论传什么 exitCode 都变成 1）。用 kernel32 ExitProcess 保留退出码
+        // 并跳过 Bun 运行时析构，与 darwin 的 _exit 目的一致。
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const { dlopen, FFIType } = require('bun:ffi')
+        const kernel32 = dlopen('kernel32.dll', {
+          ExitProcess: {
+            args: [FFIType.i32],
+            returns: FFIType.void,
+          },
+        })
+        kernel32.symbols.ExitProcess(exitCode)
       }
       process.kill(process.pid, 'SIGKILL')
     }

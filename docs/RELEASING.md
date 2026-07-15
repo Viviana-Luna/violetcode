@@ -2,16 +2,17 @@
 
 ## 发布范围
 
-`v0.1.0-preview.2` 是未使用 Apple Developer ID 签名、未公证的 CLI 预览版。预览版资产固定为：
+`v0.1.0-preview.3` 是未使用 Apple Developer ID 签名、未公证的 CLI 预览版。预览版资产固定为：
 
 - `violet-darwin-arm64.zip`
 - `violet-darwin-x64.zip`
 - `violet-linux-arm64.tar.gz`
 - `violet-linux-x64.tar.gz`
 - `violet-linux-x64-baseline.tar.gz`
+- `violet-windows-x64.zip`
 - `SHA256SUMS`
 
-每个压缩包的根目录只能包含名为 `violet` 的可执行文件。暂不发布 Windows、musl、Homebrew 或 npm 包。
+每个压缩包的根目录只能包含名为 `violet`（Windows 为 `violet.exe`）的可执行文件。暂不发布 musl、Homebrew 或 npm 包。Windows 暂只发布 x64 资产（Bun 1.3.7 不支持 `bun-windows-arm64` 编译）。
 
 ## 发布前提
 
@@ -45,12 +46,12 @@ bun run release:check
 标签触发 `.github/workflows/release.yml`：
 
 1. 在 `ubuntu-24.04` 验证标签、版本和发布门禁。
-2. 在 `macos-15`、`macos-15-intel`、`ubuntu-24.04-arm` 和 `ubuntu-24.04` 原生构建五个资产。
+2. 在 `macos-15`、`macos-15-intel`、`ubuntu-24.04-arm`、`ubuntu-24.04` 和 `windows-latest` 原生构建六个资产。
 3. 每个 runner 执行发布二进制的 `--version` 和 `--help`，再上传 Actions Artifact。
-4. 汇总 job 检查五个压缩包完整性，生成并复核 `SHA256SUMS`。
+4. 汇总 job 检查六个压缩包完整性，生成并复核 `SHA256SUMS`。
 5. 创建 Draft Release，上传全部资产成功后才将其公开为 Pre-release。
 
-任一构建、Smoke Test、哈希或上传步骤失败时，不得公开 Release。macOS 构建只执行无证书的 ad-hoc 重签以修复 Bun 编译产物布局，不构成 Developer ID 签名或 Apple 公证，也不会绕过 Gatekeeper。
+任一构建、Smoke Test、哈希或上传步骤失败时，不得公开 Release。macOS 构建只执行无证书的 ad-hoc 重签以修复 Bun 编译产物布局，不构成 Developer ID 签名或 Apple 公证，也不会绕过 Gatekeeper。Windows 构建产物为 `violet.exe`，不进行 Authenticode 签名。
 
 ## 发布后验收
 
@@ -64,6 +65,17 @@ violet --help
 violet update --check --channel preview
 ```
 
-验收必须确认不依赖 Bun 或 Git、版本与资产哈希一致、配置目录为 `~/.violet`，且当前版本被报告为最新。本次发布还必须从 `preview.1` 执行一次真实在线替换，确认更新到 `preview.2` 后旧二进制不会残留。
+验收必须确认不依赖 Bun 或 Git、版本与资产哈希一致、配置目录为 `~/.violet`，且当前版本被报告为最新。本次发布还必须从 `preview.2` 执行一次真实在线替换，确认更新到 `preview.3` 后旧二进制不会残留。
 
-macOS 额外使用 Firefox 下载资产，确认系统阻止提示及“系统设置 → 隐私与安全性 → 仍要打开”的人工放行流程。构建与安装流程不得自动删除 `com.apple.quarantine`。
+macOS 额外使用 Firefox 下载资产，确认系统阻止提示及“系统设置 -> 隐私与安全性 -> 仍要打开”的人工放行流程。构建与安装流程不得自动删除 `com.apple.quarantine`。
+
+Windows 环境额外运行（需 PowerShell 与 Git for Windows）：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File install.ps1 -Channel preview
+violet --version
+violet --help
+violet update --check --channel preview
+```
+
+Windows 二进制运行需 git-bash：安装 Git for Windows，或在 PATH 中可发现 `git`，或设置 `CLAUDE_CODE_GIT_BASH_PATH` 指向 `bash.exe`。验收需确认 `violet update` 能完成运行中 `.exe` 的原子替换（旧文件改名 `.old` 后尽力清理）。

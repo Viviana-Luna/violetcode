@@ -12,6 +12,11 @@ async function temporaryDirectory(prefix: string): Promise<string> {
   return directory
 }
 
+// Windows 无法直接 spawn 无扩展名的 bash 启动器，需经 bash 调用；macOS/Linux 维持直接调用。
+function devLauncher(args: string[]): string[] {
+  return process.platform === 'win32' ? ['bash', './violet', ...args] : ['./violet', ...args]
+}
+
 async function run(command: string[], cwd = root, env: Record<string, string> = {}) {
   const child = Bun.spawn(command, {
     cwd,
@@ -42,7 +47,7 @@ afterEach(async () => {
 })
 
 describe('源码安装与更新生命周期', () => {
-  test('安装命令创建可解析回源码启动器的符号链接', async () => {
+  test.skipIf(process.platform === 'win32')('安装命令创建可解析回源码启动器的符号链接', async () => {
     const directory = await temporaryDirectory('violet-install-')
     const binDirectory = join(directory, 'bin')
     const result = await run(['bash', 'scripts/install-source.sh'], root, {
@@ -108,13 +113,13 @@ describe('源码安装与更新生命周期', () => {
 
   test('版本输出使用完整语义化版本号', async () => {
     const directory = await temporaryDirectory('violet-version-')
-    const result = await run(['./violet', '--version'], root, {
+    const result = await run(devLauncher(['--version']), root, {
       HOME: directory,
       VIOLET_CONFIG_DIR: join(directory, 'config'),
     })
 
     expect(result.exitCode).toBe(0)
-    expect(result.stdout.trim()).toBe('v0.1.0-preview.2 (VioletCode)')
+    expect(result.stdout.trim()).toBe('v0.1.0-preview.3 (VioletCode)')
   })
 
   test('公开启动路径不挂载旧安装自检或自动更新器', async () => {
@@ -142,7 +147,7 @@ describe('源码安装与更新生命周期', () => {
 
   test('顶层帮助标题使用简体中文', async () => {
     const directory = await temporaryDirectory('violet-help-')
-    const result = await run(['./violet', '--help'], root, {
+    const result = await run(devLauncher(['--help']), root, {
       HOME: directory,
       VIOLET_CONFIG_DIR: join(directory, 'config'),
     })
@@ -158,13 +163,12 @@ describe('源码安装与更新生命周期', () => {
   test('无凭据的非交互显式模型会报告错误并退出', async () => {
     const directory = await temporaryDirectory('violet-missing-provider-')
     const result = await run(
-      [
-        './violet',
+      devLauncher([
         '-p',
         '--model',
         'volcengineArk/ark-code-latest',
         '仅用于启动校验，不应发送请求',
-      ],
+      ]),
       root,
       {
         HOME: directory,

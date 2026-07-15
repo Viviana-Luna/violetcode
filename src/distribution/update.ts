@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto'
+import { existsSync } from 'node:fs'
 import {
   chmod,
   mkdir,
@@ -97,11 +98,34 @@ async function linuxHasAvx2(): Promise<boolean> {
   }
 }
 
+// Windows 自带 bsdtar（System32\tar.exe）可解/造 zip；Git Bash 的 GNU tar 不支持 zip，
+// 故显式定位系统 tar，找不到时回退到 PATH 中的 tar。
+function windowsSystemTar(): string {
+  const systemTar = join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'tar.exe')
+  return existsSync(systemTar) ? systemTar : 'tar'
+}
+
+// Windows 上刚执行过的 exe 文件句柄会短暂占用，rename 可能 EBUSY/EPERM，需重试。
+// macOS/Linux 不会触发，首次即成功，行为不变。
+async function retryBusy<T>(fn: () => Promise<T>): Promise<T> {
+  for (let attempt = 0; attempt < 10; attempt++) {
+    try {
+      return await fn()
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code
+      if (code !== 'EBUSY' && code !== 'EPERM') throw error
+      await new Promise(resolve => setTimeout(resolve, 50 * (attempt + 1)))
+    }
+  }
+  throw new Error('文件被占用，重试失败。')
+}
+
 export async function selectAssetName(
   platform = process.platform,
   architecture = process.arch,
   hasAvx2?: boolean,
 ): Promise<string> {
+  if (platform === 'win32' && architecture === 'x64') return 'violet-windows-x64.zip'
   if (platform === 'darwin' && architecture === 'arm64') return 'violet-darwin-arm64.zip'
   if (platform === 'darwin' && architecture === 'x64') return 'violet-darwin-x64.zip'
   if (platform === 'linux' && architecture === 'arm64') return 'violet-linux-arm64.tar.gz'
@@ -136,6 +160,15 @@ function expectedChecksum(contents: string, assetName: string): string {
 }
 
 async function extractArchive(archive: string, directory: string): Promise<string> {
+  if (process.platform === 'win32') {
+    // Windows 自带 bsdtar 解 zip；zip 内为 violet.exe。
+    const extraction = Bun.spawnSync([windowsSystemTar(), '-xf', archive, '-C', directory], {
+      stdout: 'inherit',
+      stderr: 'inherit',
+    })
+    if (extraction.exitCode !== 0) throw new Error('发布包解压失败。')
+    return join(directory, 'violet.exe')
+  }
   const command = archive.endsWith('.zip')
     ? ['unzip', '-q', archive, '-d', directory]
     : ['tar', '-xzf', archive, '-C', directory]
@@ -250,13 +283,21 @@ export async function runBinaryUpdate(
 
     lock = await acquireLock(lockPath)
     const replacement = join(installationDirectory, `.violet-new-${process.pid}`)
-    await rename(candidate, replacement)
-    await chmod(replacement, 0o755)
-    await rename(replacement, executablePath)
+    await retryBusy(() => rename(candidate, replacement))
+    if (process.platform === 'win32') {
+      // Windows 不允许覆盖运行中的 exe：先把运行中 exe 改名让位，再移入新 exe，最后尽力清理 .old。
+      const oldPath = `${executablePath}.old`
+      await rename(executablePath, oldPath).catch(() => undefined)
+      await retryBusy(() => rename(replacement, executablePath))
+      await unlink(oldPath).catch(() => undefined)
+    } else {
+      await chmod(replacement, 0o755)
+      await rename(replacement, executablePath)
+    }
     process.stdout.write(`VioletCode 已更新到 v${latestVersion}。\n`)
   } finally {
     await lock?.close().catch(() => undefined)
     if (lock) await unlink(lockPath).catch(() => undefined)
-    await rm(temporaryDirectory, { recursive: true, force: true })
+    await rm(temporaryDirectory, { recursive: true, force: true }).catch(() => undefined)
   }
 }

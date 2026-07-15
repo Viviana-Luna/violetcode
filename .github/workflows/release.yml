@@ -12,6 +12,10 @@ concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false
 
+defaults:
+  run:
+    shell: bash
+
 jobs:
   validate:
     name: 验证发布标签与源码
@@ -49,22 +53,32 @@ jobs:
             target: bun-darwin-arm64
             asset: violet-darwin-arm64.zip
             archive: zip
+            binary: violet
           - runner: macos-15-intel
             target: bun-darwin-x64
             asset: violet-darwin-x64.zip
             archive: zip
+            binary: violet
           - runner: ubuntu-24.04-arm
             target: bun-linux-arm64
             asset: violet-linux-arm64.tar.gz
             archive: tar
+            binary: violet
           - runner: ubuntu-24.04
             target: bun-linux-x64
             asset: violet-linux-x64.tar.gz
             archive: tar
+            binary: violet
           - runner: ubuntu-24.04
             target: bun-linux-x64-baseline
             asset: violet-linux-x64-baseline.tar.gz
             archive: tar
+            binary: violet
+          - runner: windows-latest
+            target: bun-windows-x64
+            asset: violet-windows-x64.zip
+            archive: zip
+            binary: violet.exe
     runs-on: ${{ matrix.runner }}
     steps:
       - name: 检出源码
@@ -82,20 +96,28 @@ jobs:
         run: bun run build:release -- --target "${{ matrix.target }}" --outdir dist/native
 
       - name: 验证版本与帮助
+        env:
+          BINARY: ${{ matrix.binary }}
         run: |
-          dist/native/violet --version
-          dist/native/violet --help >/dev/null
+          dist/native/"$BINARY" --version
+          dist/native/"$BINARY" --help >/dev/null
 
       - name: 打包发布资产
         env:
           ASSET_NAME: ${{ matrix.asset }}
           ARCHIVE_TYPE: ${{ matrix.archive }}
+          BINARY: ${{ matrix.binary }}
         run: |
           mkdir -p dist/package
           if [[ "$ARCHIVE_TYPE" == "zip" ]]; then
-            zip -j "dist/package/$ASSET_NAME" dist/native/violet
+            if [[ "$RUNNER_OS" == "Windows" ]]; then
+              # Windows Git Bash 不保证有 zip；用系统自带 bsdtar 造 zip（可被 Expand-Archive/tar 解开）。
+              "C:/Windows/System32/tar.exe" -a -c -f "dist/package/$ASSET_NAME" -C dist/native "$BINARY"
+            else
+              zip -j "dist/package/$ASSET_NAME" dist/native/"$BINARY"
+            fi
           else
-            tar -C dist/native -czf "dist/package/$ASSET_NAME" violet
+            tar -C dist/native -czf "dist/package/$ASSET_NAME" "$BINARY"
           fi
 
       - name: 上传 Actions Artifact
@@ -131,8 +153,9 @@ jobs:
             violet-linux-arm64.tar.gz
             violet-linux-x64.tar.gz
             violet-linux-x64-baseline.tar.gz
+            violet-windows-x64.zip
           )
-          test "$(find . -maxdepth 1 -type f | wc -l | tr -d ' ')" = "5"
+          test "$(find . -maxdepth 1 -type f | wc -l | tr -d ' ')" = "6"
           for asset in "${expected[@]}"; do
             test -s "$asset"
           done

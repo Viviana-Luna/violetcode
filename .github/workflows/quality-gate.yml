@@ -13,13 +13,17 @@ concurrency:
   group: quality-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+defaults:
+  run:
+    shell: bash
+
 jobs:
   offline-quality:
     name: ${{ matrix.os }} 发布质量检查
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-24.04, macos-15]
+        os: [ubuntu-24.04, macos-15, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - name: 检出源码
@@ -40,3 +44,17 @@ jobs:
       - name: 运行 macOS 完整发布门禁
         if: runner.os == 'macOS'
         run: bun run release:check -- --skip-audit
+
+      # Windows 不跑完整 release:check：test:core 含 Unix 文件权限位（0600）等断言，
+      # 在 Windows 不成立且与本任务无关。改为聚焦门禁：类型/敏感扫描/构建/Smoke/分发测试。
+      - name: 运行 Windows 发布门禁
+        if: runner.os == 'Windows'
+        env:
+          CLAUDE_CODE_GIT_BASH_PATH: C:\Program Files\Git\bin\bash.exe
+        run: |
+          bun run typecheck
+          bun run security:sensitive
+          bun run build:release -- --target bun-windows-x64 --outdir dist/native
+          dist/native/violet.exe --version
+          dist/native/violet.exe --help >/dev/null
+          bun test test/distribution.test.ts

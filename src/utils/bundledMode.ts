@@ -11,6 +11,7 @@ export function isInBundledMode(): boolean {
   return (
     typeof Bun !== 'undefined' &&
     ((Array.isArray(Bun.embeddedFiles) && Bun.embeddedFiles.length > 0) ||
-      Bun.main.startsWith('/$bunfs/root/'))
+      Bun.main.startsWith('/$bunfs/root/') ||
+      /~BUN[\\/]+root[\\/]/.test(Bun.main))
   )
 }

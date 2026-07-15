@@ -1,8 +1,9 @@
 import { afterEach, beforeAll, describe, expect, test } from 'bun:test'
 import { createHash } from 'node:crypto'
-import { chmod, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises'
+import { existsSync } from 'node:fs'
+import { chmod, mkdir, mkdtemp, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { basename, dirname, join } from 'node:path'
 
 type DistributionModule = typeof import('../src/distribution/update.js')
 
@@ -23,7 +24,9 @@ beforeAll(async () => {
 })
 
 afterEach(async () => {
-  await Promise.all(temporaryPaths.splice(0).map(path => rm(path, { recursive: true, force: true })))
+  await Promise.all(
+    temporaryPaths.splice(0).map(path => rm(path, { recursive: true, force: true }).catch(() => undefined)),
+  )
 })
 
 async function temporaryDirectory(prefix: string): Promise<string> {
@@ -136,10 +139,11 @@ describe('GitHub Release 选择', () => {
     expect(await distribution.selectAssetName('darwin', 'x64')).toBe('violet-darwin-x64.zip')
     expect(await distribution.selectAssetName('linux', 'arm64')).toBe('violet-linux-arm64.tar.gz')
     expect(await distribution.selectAssetName('linux', 'x64', false)).toBe('violet-linux-x64-baseline.tar.gz')
+    expect(await distribution.selectAssetName('win32', 'x64')).toBe('violet-windows-x64.zip')
   })
 })
 
-describe('二进制原子更新', () => {
+describe.skipIf(process.platform === 'win32')('二进制原子更新', () => {
   test('--check 只查询版本，不下载资产', async () => {
     let requests = 0
     const release = {
@@ -355,7 +359,7 @@ describe('二进制原子更新', () => {
   })
 })
 
-describe('Shell 安装器', () => {
+describe.skipIf(process.platform === 'win32')('Shell 安装器', () => {
   test('从 preview 频道下载、校验并安装到指定目录', async () => {
     const directory = await temporaryDirectory('violet-installer-')
     const binDirectory = join(directory, 'bin')
@@ -413,4 +417,180 @@ describe('Shell 安装器', () => {
     expect(stderr).toContain('不是 VioletCode，拒绝覆盖')
     expect(await readFile(target, 'utf8')).toBe(original)
   })
+})
+
+function createWindowsZip(exePath: string, archivePath: string): void {
+  const systemTar = join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'tar.exe')
+  const tarBin = existsSync(systemTar) ? systemTar : 'tar'
+  const result = Bun.spawnSync(
+    [tarBin, '-a', '-c', '-f', archivePath, '-C', dirname(exePath), basename(exePath)],
+    { stdout: 'inherit', stderr: 'inherit' },
+  )
+  if (result.exitCode !== 0) throw new Error('创建测试 zip 失败。')
+}
+
+describe.skipIf(process.platform !== 'win32')('Windows 二进制更新', () => {
+  async function compileVersionExe(directory: string, version: string): Promise<string> {
+    const src = join(directory, `src-${version}.ts`)
+    await writeFile(
+      src,
+      `if (process.argv[2] === '--version') console.log('v${version} (VioletCode)')`,
+      'utf8',
+    )
+    const out = join(directory, `violet-${version}.exe`)
+    const build = await Bun.build({
+      entrypoints: [src],
+      compile: { target: 'bun-windows-x64', outfile: out },
+    })
+    expect(build.success).toBe(true)
+    return out
+  }
+
+  test('校验并替换当前 exe', async () => {
+    const directory = await temporaryDirectory('violet-win-update-')
+    const current = join(directory, 'violet.exe')
+    await rename(await compileVersionExe(directory, '0.1.0-preview.1'), current)
+
+    const payload = join(directory, 'payload')
+    await mkdir(payload, { recursive: true })
+    await rename(await compileVersionExe(directory, '0.1.0-preview.2'), join(payload, 'violet.exe'))
+
+    const archive = join(directory, 'violet-windows-x64.zip')
+    createWindowsZip(join(payload, 'violet.exe'), archive)
+    const archiveBytes = await readFile(archive)
+    const checksum = createHash('sha256').update(archiveBytes).digest('hex')
+
+    const release = {
+      tag_name: 'v0.1.0-preview.2',
+      draft: false,
+      prerelease: true,
+      assets: [
+        { name: 'violet-windows-x64.zip', browser_download_url: 'https://download.test/violet-windows-x64.zip' },
+        { name: 'SHA256SUMS', browser_download_url: 'https://download.test/SHA256SUMS' },
+      ],
+    }
+    const previousConfig = process.env.VIOLET_CONFIG_DIR
+    process.env.VIOLET_CONFIG_DIR = join(directory, 'config')
+    try {
+      await distribution.runBinaryUpdate(
+        { channel: 'preview' },
+        {
+          bundled: true,
+          executablePath: current,
+          assetName: 'violet-windows-x64.zip',
+          apiUrl: 'https://api.test',
+          fetcher: releaseFetcher(release, {
+            'violet-windows-x64.zip': archiveBytes,
+            SHA256SUMS: `${checksum}  violet-windows-x64.zip\n`,
+          }),
+        },
+      )
+    } finally {
+      if (previousConfig === undefined) delete process.env.VIOLET_CONFIG_DIR
+      else process.env.VIOLET_CONFIG_DIR = previousConfig
+    }
+    const version = Bun.spawnSync([current, '--version'])
+    expect(version.exitCode).toBe(0)
+    expect(version.stdout.toString().trim()).toBe('v0.1.0-preview.2 (VioletCode)')
+  }, 60000)
+})
+
+describe.skipIf(process.platform !== 'win32')('PowerShell 安装器', () => {
+  async function prepareWindowsMirror(directory: string): Promise<{ apiBase: string; downloadBase: string }> {
+    const assetName = 'violet-windows-x64.zip'
+    const src = join(directory, 'version.ts')
+    await writeFile(
+      src,
+      "if (process.argv[2] === '--version') console.log('v0.1.0-preview.1 (VioletCode)')",
+      'utf8',
+    )
+    const payload = join(directory, 'payload')
+    await mkdir(payload, { recursive: true })
+    const exe = join(payload, 'violet.exe')
+    const build = await Bun.build({ entrypoints: [src], compile: { target: 'bun-windows-x64', outfile: exe } })
+    expect(build.success).toBe(true)
+    const archive = join(directory, assetName)
+    createWindowsZip(exe, archive)
+    const archiveBytes = await readFile(archive)
+    const checksum = createHash('sha256').update(archiveBytes).digest('hex')
+    const tag = 'v0.1.0-preview.1'
+    const mirror = join(directory, 'mirror')
+    const apiDir = join(mirror, 'api')
+    const dlDir = join(mirror, 'downloads', tag)
+    await mkdir(apiDir, { recursive: true })
+    await mkdir(dlDir, { recursive: true })
+    await writeFile(
+      join(apiDir, 'releases'),
+      JSON.stringify([{ tag_name: tag, draft: false, prerelease: true, assets: [] }]),
+      'utf8',
+    )
+    await Bun.write(join(dlDir, assetName), archiveBytes)
+    await writeFile(join(dlDir, 'SHA256SUMS'), `${checksum}  ${assetName}\n`, 'utf8')
+    return mirror
+  }
+
+  function serveMirror(mirrorDir: string): { apiBase: string; downloadBase: string; stop: () => void } {
+    const server = Bun.serve({
+      port: 0,
+      fetch(req) {
+        const url = new URL(req.url)
+        const filePath = join(mirrorDir, ...url.pathname.split('/').filter(Boolean))
+        const file = Bun.file(filePath)
+        if (!file.exists()) return new Response('not found', { status: 404 })
+        // GitHub API 返回 application/json；PS 5.1 的 IWR 据 content-type 决定 .Content 是字符串还是字节，
+        // 必须显式声明，否则 ConvertFrom-Json 会把字节逐个当 JSON 数字解析。
+        const headers = url.pathname.startsWith('/api/') ? { 'content-type': 'application/json' } : {}
+        return new Response(file, { headers })
+      },
+    })
+    const base = `http://localhost:${server.port}`
+    return { apiBase: `${base}/api`, downloadBase: `${base}/downloads`, stop: () => server.stop() }
+  }
+
+  test('从 preview 频道下载、校验并安装到指定目录', async () => {
+    const directory = await temporaryDirectory('violet-ps1-')
+    const binDir = join(directory, 'bin')
+    const mirrorDir = await prepareWindowsMirror(directory)
+    const server = serveMirror(mirrorDir)
+    try {
+      const child = Bun.spawn(
+        [
+          'powershell.exe',
+          '-NoProfile',
+          '-NonInteractive',
+          '-ExecutionPolicy',
+          'Bypass',
+          '-File',
+          join(import.meta.dir, '..', 'install.ps1'),
+          '-Channel',
+          'preview',
+          '-BinDir',
+          binDir,
+        ],
+        {
+          cwd: join(import.meta.dir, '..'),
+          env: {
+            ...process.env,
+            VIOLET_GITHUB_API_BASE: server.apiBase,
+            VIOLET_GITHUB_DOWNLOAD_BASE: server.downloadBase,
+            VIOLET_INSTALL_SKIP_PATH: '1',
+          },
+          stdout: 'pipe',
+          stderr: 'pipe',
+        },
+      )
+      const [stdout, stderr, exitCode] = await Promise.all([
+        new Response(child.stdout).text(),
+        new Response(child.stderr).text(),
+        child.exited,
+      ])
+      expect(exitCode).toBe(0)
+      expect(stderr).toBe('')
+      expect(stdout).toContain('已安装')
+      const installed = Bun.spawnSync([join(binDir, 'violet.exe'), '--version'])
+      expect(installed.stdout.toString().trim()).toBe('v0.1.0-preview.1 (VioletCode)')
+    } finally {
+      server.stop()
+    }
+  }, 60000)
 })

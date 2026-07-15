@@ -16,6 +16,7 @@ const supportedTargets = new Set([
   'bun-linux-arm64',
   'bun-linux-x64',
   'bun-linux-x64-baseline',
+  'bun-windows-x64',
 ])
 
 function argument(name: string): string | undefined {
@@ -30,7 +31,9 @@ if (!supportedTargets.has(target)) {
 
 const outputDirectory = resolve(argument('--outdir') ?? join(root, 'dist', 'release', version, target))
 const stagingDirectory = join(root, 'dist', '.release-staging', target)
-const outputPath = join(outputDirectory, 'violet')
+const isWindowsTarget = target.startsWith('bun-windows-')
+const executableName = isWindowsTarget ? 'violet.exe' : 'violet'
+const outputPath = join(outputDirectory, executableName)
 
 const featureImportPattern = /import\s*\{[^}]*\bfeature\b[^}]*\}\s*from\s*['"]bun:bundle['"];?\s*\n?/g
 const featureCallPattern = /\bfeature\(\s*['"](\w+)['"][,\s]*\)/gs
