@@ -256,6 +256,23 @@ if (!bundle.success) {
 
 const bundlePath = join(stagingDirectory, 'violet.js')
 const bundleText = await Bun.file(bundlePath).text()
+const forbiddenLegacyMarkers = new Map<string, string>([
+  [
+    'Claude 原生分发地址',
+    'storage.googleapis.com/claude-code-dist-86c565f3-f756-42ad-8dfa-d59b1c096819',
+  ],
+  ['旧原生自动更新器', 'tengu_native_auto_updater_start'],
+  ['旧 npm 自动更新器', 'tengu_auto_updater_success'],
+  ['旧 Claude 安装自检', 'installMethod is native, but claude command'],
+])
+const legacyFindings = [...forbiddenLegacyMarkers]
+  .filter(([, marker]) => bundleText.includes(marker))
+  .map(([name]) => name)
+if (legacyFindings.length > 0) {
+  for (const finding of legacyFindings) console.error(`发布 bundle 仍包含${finding}`)
+  throw new Error('旧 Claude 安装或自动更新能力仍可达，拒绝生成发布二进制。')
+}
+
 const markers = [...bundleText.matchAll(/violet-missing-module:[^"'\\\s]+/g)].map(match => match[0])
 if (markers.length > 0) {
   console.error('发布 bundle 中仍存在缺失模块：')

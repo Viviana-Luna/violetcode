@@ -2,7 +2,7 @@
 
 ## 发布范围
 
-`v0.1.0-preview.1` 是未使用 Apple Developer ID 签名、未公证的 CLI 预览版。首发资产固定为：
+`v0.1.0-preview.2` 是未使用 Apple Developer ID 签名、未公证的 CLI 预览版。预览版资产固定为：
 
 - `violet-darwin-arm64.zip`
 - `violet-darwin-x64.zip`
@@ -64,6 +64,6 @@ violet --help
 violet update --check --channel preview
 ```
 
-验收必须确认不依赖 Bun 或 Git、版本与资产哈希一致、配置目录为 `~/.violet`，且当前版本被报告为最新。跨真实版本的在线替换留到下一个预览版本验证。
+验收必须确认不依赖 Bun 或 Git、版本与资产哈希一致、配置目录为 `~/.violet`，且当前版本被报告为最新。本次发布还必须从 `preview.1` 执行一次真实在线替换，确认更新到 `preview.2` 后旧二进制不会残留。
 
 macOS 额外使用 Firefox 下载资产，确认系统阻止提示及“系统设置 → 隐私与安全性 → 仍要打开”的人工放行流程。构建与安装流程不得自动删除 `com.apple.quarantine`。

@@ -17,9 +17,7 @@ import { getIsInteractive, getLastInteractionTime } from '../bootstrap/state.js'
 import {
   cleanupNpmCacheForAnthropicPackages,
   cleanupOldMessageFilesInBackground,
-  cleanupOldVersionsThrottled,
 } from './cleanup.js'
-import { cleanupOldVersions } from './nativeInstaller/index.js'
 
 // 24 hours in milliseconds
 const RECURRING_CLEANUP_INTERVAL_MS = 24 * 60 * 60 * 1000
@@ -69,7 +67,6 @@ export function startBackgroundHousekeeping(): void {
       return
     }
 
-    await cleanupOldVersions()
   }
 
   setTimeout(
@@ -83,7 +80,6 @@ export function startBackgroundHousekeeping(): void {
   if (process.env.USER_TYPE === 'ant') {
     const interval = setInterval(() => {
       void cleanupNpmCacheForAnthropicPackages()
-      void cleanupOldVersionsThrottled()
     }, RECURRING_CLEANUP_INTERVAL_MS)
 
     // Don't let this interval keep the process alive

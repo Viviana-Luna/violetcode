@@ -114,7 +114,30 @@ describe('源码安装与更新生命周期', () => {
     })
 
     expect(result.exitCode).toBe(0)
-    expect(result.stdout.trim()).toBe('v0.1.0-preview.1 (VioletCode)')
+    expect(result.stdout.trim()).toBe('v0.1.0-preview.2 (VioletCode)')
+  })
+
+  test('公开启动路径不挂载旧安装自检或自动更新器', async () => {
+    const [repl, notifications, setup, housekeeping, cleanup, status, handlers, releaseBuilder] =
+      await Promise.all([
+        readFile(join(root, 'src/screens/REPL.tsx'), 'utf8'),
+        readFile(join(root, 'src/components/PromptInput/Notifications.tsx'), 'utf8'),
+        readFile(join(root, 'src/setup.ts'), 'utf8'),
+        readFile(join(root, 'src/utils/backgroundHousekeeping.ts'), 'utf8'),
+        readFile(join(root, 'src/utils/cleanup.ts'), 'utf8'),
+        readFile(join(root, 'src/utils/status.tsx'), 'utf8'),
+        readFile(join(root, 'src/cli/handlers/util.tsx'), 'utf8'),
+        readFile(join(root, 'scripts/build-release.ts'), 'utf8'),
+      ])
+
+    expect(repl).not.toContain('useInstallMessages')
+    expect(notifications).not.toContain("import { AutoUpdaterWrapper }")
+    expect(setup).not.toContain('lockCurrentVersion')
+    expect(housekeeping).not.toContain('cleanupOldVersions')
+    expect(cleanup).not.toContain("from './nativeInstaller/index.js'")
+    expect(status).not.toContain('checkInstall')
+    expect(handlers).not.toContain('installHandler')
+    expect(releaseBuilder).toContain('旧 Claude 安装或自动更新能力仍可达')
   })
 
   test('顶层帮助标题使用简体中文', async () => {
