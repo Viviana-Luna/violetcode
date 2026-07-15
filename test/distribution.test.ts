@@ -74,7 +74,7 @@ async function prepareInstallerMirror(directory: string): Promise<{
   await mkdir(downloadDirectory, { recursive: true })
   await writeFile(
     join(apiDirectory, 'releases'),
-    JSON.stringify([{ tag_name: tag, draft: false, prerelease: true, assets: [] }], null, 2),
+    JSON.stringify([{ tag_name: tag, draft: false, prerelease: true, assets: [] }]),
     'utf8',
   )
   await Bun.write(join(downloadDirectory, assetName), archive)
