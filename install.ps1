@@ -48,7 +48,7 @@ function Invoke-Api {
     if ($status -eq 403) { throw 'GitHub Release 请求失败：HTTP 403，可能已触发 GitHub API 访问频率限制。' }
     throw "GitHub Release 请求失败：HTTP $status"
   }
-  return $response.Content | ConvertFrom-Json
+  $response.Content | ConvertFrom-Json
 }
 
 function Test-ValidVersion {
@@ -72,6 +72,9 @@ if ($Version -ne '') {
   $Tag = $release.tag_name
 } else {
   $releases = @(Invoke-Api "$ApiBase/releases?per_page=30")
+  # PS 5.1: ConvertFrom-Json 返回的数组经函数 emit 后，@() 会把它当单个对象包裹，
+  # 得到长度 1 的数组（唯一元素是原数组）。展开为元素序列再重新收为数组。
+  if ($releases.Count -eq 1 -and $releases[0].Count -gt 1) { $releases = @($releases[0]) }
   $bestTag = $null
   $bestKey = $null
   foreach ($r in $releases) {
