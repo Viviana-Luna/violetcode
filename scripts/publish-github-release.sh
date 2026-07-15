@@ -9,6 +9,11 @@ if ! command -v gh >/dev/null 2>&1; then
   exit 1
 fi
 
+if ! gh auth status >/dev/null 2>&1; then
+  echo "错误：GitHub CLI 认证无效。请先在 Firefox 中完成 gh auth login --web。" >&2
+  exit 1
+fi
+
 if [[ -n "$(git status --porcelain --untracked-files=normal)" ]]; then
   echo "错误：工作区存在未提交修改，拒绝发布。" >&2
   exit 1
@@ -17,6 +22,12 @@ fi
 BRANCH="$(git branch --show-current)"
 if [[ "$BRANCH" != "main" ]]; then
   echo "错误：正式 Release 只能从 main 分支创建，当前分支为 ${BRANCH:-未知}。" >&2
+  exit 1
+fi
+
+git fetch --tags origin main
+if [[ "$(git rev-parse HEAD)" != "$(git rev-parse origin/main)" ]]; then
+  echo "错误：本地 main 与 origin/main 不一致，拒绝创建发布标签。" >&2
   exit 1
 fi
 
@@ -34,10 +45,8 @@ fi
 
 bun run release:check
 
-echo "即将创建 GitHub Release：$TAG"
-gh release create "$TAG" \
-  --target "$(git rev-parse HEAD)" \
-  --title "VioletCode $TAG" \
-  --generate-notes
+echo "即将创建并推送发布标签：$TAG"
+git tag -a "$TAG" -m "发布 VioletCode $TAG"
+git push origin "$TAG"
 
-echo "GitHub Release 已创建：$TAG"
+echo "标签已推送；GitHub Actions 将构建全部平台产物并创建 Pre-release：$TAG"

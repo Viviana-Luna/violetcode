@@ -15,11 +15,11 @@ concurrency:
 
 jobs:
   offline-quality:
-    name: ${{ matrix.os }} 离线质量检查
+    name: ${{ matrix.os }} 发布质量检查
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-14]
+        os: [ubuntu-24.04, macos-15]
     runs-on: ${{ matrix.os }}
     steps:
       - name: 检出源码
@@ -33,17 +33,10 @@ jobs:
       - name: 按锁文件安装依赖
         run: bun install --frozen-lockfile
 
-      - name: 运行核心测试
-        run: bun run test:core
-
-      - name: 运行类型增量门禁
-        run: bun run typecheck
-
-      - name: 检查 CLI 帮助与版本
-        run: |
-          ./violet --help >/dev/null
-          ./violet --version
-
-      - name: 审计生产依赖
+      - name: 运行 Linux 完整发布门禁
         if: runner.os == 'Linux'
-        run: bun audit --production
+        run: bun run release:check
+
+      - name: 运行 macOS 完整发布门禁
+        if: runner.os == 'macOS'
+        run: bun run release:check -- --skip-audit

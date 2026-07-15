@@ -1,22 +1,16 @@
-/**
- * Detects if the current runtime is Bun.
- * Returns true when:
- * - Running a JS file via the `bun` command
- * - Running a Bun-compiled standalone executable
- */
+/** 判断当前进程是否由 Bun 运行。 */
 export function isRunningWithBun(): boolean {
-  // https://bun.com/guides/util/detect-bun
   return process.versions.bun !== undefined
 }
 
 /**
- * Detects if running as a Bun-compiled standalone executable.
- * This checks for embedded files which are present in compiled binaries.
+ * 判断当前进程是否为 Bun standalone 可执行文件。
+ * 无额外资源的编译产物不会出现在 Bun.embeddedFiles 中，但入口仍位于 bunfs。
  */
 export function isInBundledMode(): boolean {
   return (
     typeof Bun !== 'undefined' &&
-    Array.isArray(Bun.embeddedFiles) &&
-    Bun.embeddedFiles.length > 0
+    ((Array.isArray(Bun.embeddedFiles) && Bun.embeddedFiles.length > 0) ||
+      Bun.main.startsWith('/$bunfs/root/'))
   )
 }

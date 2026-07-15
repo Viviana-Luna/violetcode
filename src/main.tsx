@@ -4015,6 +4015,22 @@ async function run(): Promise<CommanderCommand> {
     });
   }
 
+  program.command('update').description('检查或安装 VioletCode GitHub Release 更新').option('--check', '只检查新版本，不下载或替换二进制').option('--channel <channel>', '更新频道：stable 或 preview').action(async (options: {
+    check?: boolean;
+    channel?: string;
+  }) => {
+    try {
+      const {
+        runBinaryUpdate
+      } = await import('./distribution/update.js');
+      await runBinaryUpdate(options);
+      process.exit(0);
+    } catch (error) {
+      process.stderr.write(`VioletCode 更新失败：${error instanceof Error ? error.message : String(error)}\n`);
+      process.exit(1);
+    }
+  });
+
   // Doctor command - check installation health
   program.command('doctor').description('检查 VioletCode 本地配置与 MCP 健康状态；该命令会跳过工作区信任对话框，请仅在可信目录中运行。').action(async () => {
     const [{
