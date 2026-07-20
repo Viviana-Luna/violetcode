@@ -20,14 +20,14 @@ if [[ -n "$(git status --porcelain --untracked-files=normal)" ]]; then
 fi
 
 BRANCH="$(git branch --show-current)"
-if [[ "$BRANCH" != "main" ]]; then
-  echo "错误：正式 Release 只能从 main 分支创建，当前分支为 ${BRANCH:-未知}。" >&2
+if [[ "$BRANCH" != "master" ]]; then
+  echo "错误：正式 Release 只能从 master 分支创建，当前分支为 ${BRANCH:-未知}。" >&2
   exit 1
 fi
 
-git fetch --tags origin main
-if [[ "$(git rev-parse HEAD)" != "$(git rev-parse origin/main)" ]]; then
-  echo "错误：本地 main 与 origin/main 不一致，拒绝创建发布标签。" >&2
+git fetch --tags origin master
+if [[ "$(git rev-parse HEAD)" != "$(git rev-parse origin/master)" ]]; then
+  echo "错误：本地 master 与 origin/master 不一致，拒绝创建发布标签。" >&2
   exit 1
 fi
 

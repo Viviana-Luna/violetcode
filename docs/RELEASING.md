@@ -58,7 +58,7 @@ bun run release:check
 在全新 macOS 和 Ubuntu 环境运行：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Viviana-Luna/violetcode/main/install.sh |
+curl -fsSL https://raw.githubusercontent.com/Viviana-Luna/violetcode/master/install.sh |
   bash -s -- --channel preview
 violet --version
 violet --help
