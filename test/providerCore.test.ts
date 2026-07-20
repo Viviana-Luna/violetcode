@@ -34,6 +34,7 @@ import {
   CUSTOM_PROVIDER_DEFAULT_CONTEXT_WINDOW,
   generateCustomProviderId,
   getCustomProviderApiKeyEnvVar,
+  getCustomProviderConfigs,
   isValidCustomModelId,
   isValidCustomProviderBaseUrl,
   parseCustomModelContextWindow,
@@ -176,6 +177,21 @@ describe('Provider 模型身份', () => {
     expect(getProviderSetupContinuation('deepseek', 'provider')).toBe(
       'complete',
     )
+
+    const customExa = upsertCustomProvider({
+      baseUrl: 'https://custom-exa.example/v1',
+      authMethod: 'bearer',
+      webSearch: 'exa',
+      models: [{ id: 'custom-exa-model' }],
+    })
+    expect(getProviderSetupContinuation(customExa.id, 'provider')).toBe(
+      'capability',
+    )
+    expect(getProviderSetupContinuation(customExa.id, 'exa')).toBe(
+      'capability',
+    )
+    expect(canCompleteProviderSetup(customExa.id, false)).toBe(false)
+    expect(canCompleteProviderSetup(customExa.id, true)).toBe(true)
   })
 
   test('显式模型只要求配置它所属的 Provider', () => {
@@ -635,9 +651,11 @@ describe('SDK 请求路由快照', () => {
 
 describe('自定义 Provider 端点', () => {
   test('config.json 中的畸形自定义条目被跳过，不影响内置 Provider 链路', () => {
+    const invalidModelBaseUrl = 'https://invalid-model.example/v1'
     saveGlobalConfig(current => ({
       ...current,
       customProviders: [
+        null,
         { id: 'not-custom-prefix' },
         {
           id: 'custom-broken',
@@ -646,6 +664,24 @@ describe('自定义 Provider 端点', () => {
           authMethod: 'bearer',
           webSearch: 'native',
           models: 'not-an-array',
+        },
+        {
+          id: generateCustomProviderId('not-a-url'),
+          label: '非法地址',
+          baseUrl: 'not-a-url',
+          authMethod: 'bearer',
+          webSearch: 'native',
+          models: [{ id: 'model' }],
+        },
+        {
+          id: generateCustomProviderId(invalidModelBaseUrl),
+          label: '非法模型能力',
+          baseUrl: invalidModelBaseUrl,
+          authMethod: 'bearer',
+          webSearch: 'native',
+          models: [
+            { id: 'model', contextWindow: -1, thinking: 'yes' },
+          ],
         },
       ] as never,
     }))
@@ -674,6 +710,9 @@ describe('自定义 Provider 端点', () => {
     expect(parseCustomModelContextWindow('-5')).toBeNull()
     expect(parseCustomModelContextWindow('abc')).toBeNull()
     expect(parseCustomModelContextWindow('1.5')).toBeNull()
+    expect(
+      parseCustomModelContextWindow(String(Number.MAX_SAFE_INTEGER + 1)),
+    ).toBeNull()
   })
 
   test('upsert 拒绝非法输入，不写入半成品配置', () => {
@@ -704,7 +743,30 @@ describe('自定义 Provider 端点', () => {
         models: [{ id: 'bad-ctx', contextWindow: -1 }],
       }),
     ).toThrow('上下文窗口')
+    expect(() =>
+      upsertCustomProvider({
+        ...valid,
+        models: [{ id: 'bad-thinking', thinking: 'yes' as never }],
+      }),
+    ).toThrow('Thinking 配置')
     expect(getGlobalConfig().customProviders ?? []).toHaveLength(0)
+  })
+
+  test('upsert 会清理畸形旧条目，不因 null 或非数组配置崩溃', () => {
+    saveGlobalConfig(current => ({
+      ...current,
+      customProviders: [null, { id: 'broken' }] as never,
+    }))
+
+    const entry = upsertCustomProvider({
+      baseUrl: 'http://127.0.0.1:8317/v1',
+      authMethod: 'bearer',
+      webSearch: 'native',
+      models: [{ id: 'local-model' }],
+    })
+
+    expect(getGlobalConfig().customProviders).toEqual([entry])
+    expect(getCustomProviderConfigs()).toEqual([entry])
   })
 
   test('注册后进入合并定义列表，模型能力按用户配置与保守默认生成', () => {

@@ -93,7 +93,8 @@ function getSearchCredentialDescription(): string {
 
 function getProviderOptionDescription(provider: APIProvider): string {
   const providerDescription = getCredentialDescription(provider)
-  return provider === 'volcengineArk'
+  return getProviderDefinition(provider)?.webSearch.kind ===
+    'client-search-provider'
     ? `${providerDescription}；${getSearchCredentialDescription()}`
     : providerDescription
 }
@@ -189,7 +190,9 @@ export function CustomApiSetup({
       return
     }
     setProvider(nextProvider)
-    if (nextProvider === 'volcengineArk') {
+    if (
+      getProviderSetupContinuation(nextProvider, 'provider') === 'capability'
+    ) {
       setStep('capability')
     } else {
       continueWithProviderCredential(nextProvider)
@@ -222,7 +225,11 @@ export function CustomApiSetup({
 
   function returnToCredentialMenu(): void {
     setError(undefined)
-    setStep(provider === 'volcengineArk' ? 'capability' : 'provider')
+    setStep(
+      getProviderSetupContinuation(provider, credentialTarget) === 'capability'
+        ? 'capability'
+        : 'provider',
+    )
   }
 
   function continueAfterCredential(): void {

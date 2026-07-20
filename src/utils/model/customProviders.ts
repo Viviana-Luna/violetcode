@@ -67,7 +67,7 @@ export function parseCustomModelContextWindow(
   const trimmed = value.trim()
   if (!trimmed) return undefined
   const parsed = Number(trimmed)
-  if (!Number.isInteger(parsed) || parsed <= 0) return null
+  if (!Number.isSafeInteger(parsed) || parsed <= 0) return null
   return parsed
 }
 
@@ -116,21 +116,42 @@ function isValidCustomProviderConfig(
 ): value is CustomProviderConfig {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false
   const entry = value as Partial<CustomProviderConfig>
-  return (
-    typeof entry.id === 'string' &&
-    isCustomProviderId(entry.id) &&
-    typeof entry.label === 'string' &&
-    typeof entry.baseUrl === 'string' &&
-    (entry.authMethod === 'x-api-key' || entry.authMethod === 'bearer') &&
-    (entry.webSearch === 'native' || entry.webSearch === 'exa') &&
-    Array.isArray(entry.models) &&
-    entry.models.every(
-      model =>
-        model &&
-        typeof model === 'object' &&
-        typeof (model as { id?: unknown }).id === 'string',
-    )
-  )
+  if (
+    typeof entry.id !== 'string' ||
+    !isCustomProviderId(entry.id) ||
+    typeof entry.label !== 'string' ||
+    !entry.label.trim() ||
+    typeof entry.baseUrl !== 'string' ||
+    !isValidCustomProviderBaseUrl(entry.baseUrl) ||
+    // 地址必须与凭据绑定用的 Provider ID 一致，避免旧凭据被静默转发到手工改写后的新端点。
+    entry.id !==
+      generateCustomProviderId(normalizeCustomProviderBaseUrl(entry.baseUrl)) ||
+    (entry.authMethod !== 'x-api-key' && entry.authMethod !== 'bearer') ||
+    (entry.webSearch !== 'native' && entry.webSearch !== 'exa') ||
+    !Array.isArray(entry.models) ||
+    entry.models.length === 0
+  ) {
+    return false
+  }
+
+  const modelIds = new Set<string>()
+  for (const value of entry.models as unknown[]) {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return false
+    const model = value as Partial<CustomProviderModelConfig>
+    if (
+      typeof model.id !== 'string' ||
+      !isValidCustomModelId(model.id) ||
+      modelIds.has(model.id) ||
+      (model.contextWindow !== undefined &&
+        (!Number.isSafeInteger(model.contextWindow) ||
+          model.contextWindow <= 0)) ||
+      (model.thinking !== undefined && typeof model.thinking !== 'boolean')
+    ) {
+      return false
+    }
+    modelIds.add(model.id)
+  }
+  return true
 }
 
 /**
@@ -158,7 +179,13 @@ export function upsertCustomProvider(
   if (!baseUrl || !isValidCustomProviderBaseUrl(baseUrl)) {
     throw new Error('Base URL 必须是合法的 http:// 或 https:// 地址')
   }
-  if (input.models.length === 0) {
+  if (input.authMethod !== 'x-api-key' && input.authMethod !== 'bearer') {
+    throw new Error('认证方式必须是 X-Api-Key 或 Bearer Token')
+  }
+  if (input.webSearch !== 'native' && input.webSearch !== 'exa') {
+    throw new Error('网页搜索链路必须是端点原生搜索或 Exa')
+  }
+  if (!Array.isArray(input.models) || input.models.length === 0) {
     throw new Error('至少需要添加一个模型')
   }
   const seenModelIds = new Set<string>()
@@ -172,9 +199,12 @@ export function upsertCustomProvider(
     seenModelIds.add(model.id)
     if (
       model.contextWindow !== undefined &&
-      (!Number.isInteger(model.contextWindow) || model.contextWindow <= 0)
+      (!Number.isSafeInteger(model.contextWindow) || model.contextWindow <= 0)
     ) {
       throw new Error(`模型 ${model.id} 的上下文窗口必须是正整数`)
+    }
+    if (model.thinking !== undefined && typeof model.thinking !== 'boolean') {
+      throw new Error(`模型 ${model.id} 的 Thinking 配置必须是布尔值`)
     }
   }
   const id = generateCustomProviderId(baseUrl)
@@ -197,7 +227,12 @@ export function upsertCustomProvider(
   saveGlobalConfig(current => ({
     ...current,
     customProviders: [
-      ...(current.customProviders ?? []).filter(existing => existing.id !== id),
+      ...(Array.isArray(current.customProviders)
+        ? current.customProviders.filter(
+            existing =>
+              isValidCustomProviderConfig(existing) && existing.id !== id,
+          )
+        : []),
       entry,
     ],
   }))
