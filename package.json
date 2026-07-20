@@ -1,7 +1,7 @@
 {
   "name": "violet-code",
   "private": true,
-  "version": "0.1.0-preview.3",
+  "version": "0.1.0-preview.4",
   "description": "面向 DeepSeek 与火山方舟的终端 AI 编程助手",
   "repository": {
     "type": "git",

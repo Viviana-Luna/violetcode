@@ -2,7 +2,7 @@
 
 ## 发布范围
 
-`v0.1.0-preview.3` 是未使用 Apple Developer ID 签名、未公证的 CLI 预览版。预览版资产固定为：
+`v0.1.0-preview.4` 是未使用 Apple Developer ID 签名、未公证的 CLI 预览版。预览版资产固定为：
 
 - `violet-darwin-arm64.zip`
 - `violet-darwin-x64.zip`

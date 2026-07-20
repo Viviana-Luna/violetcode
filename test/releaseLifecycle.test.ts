@@ -119,7 +119,7 @@ describe('源码安装与更新生命周期', () => {
     })
 
     expect(result.exitCode).toBe(0)
-    expect(result.stdout.trim()).toBe('v0.1.0-preview.3 (VioletCode)')
+    expect(result.stdout.trim()).toBe('v0.1.0-preview.4 (VioletCode)')
   })
 
   test('公开启动路径不挂载旧安装自检或自动更新器', async () => {
