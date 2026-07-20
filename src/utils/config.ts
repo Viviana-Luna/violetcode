@@ -41,7 +41,7 @@ const ccrAutoConnect = feature('CCR_AUTO_CONNECT')
 /* eslint-enable @typescript-eslint/no-require-imports */
 import type { ImageDimensions } from './imageResizer.js'
 import type { ModelOption } from './model/modelOptions.js'
-import type { APIProvider } from './model/types.js'
+import type { APIProvider, CustomProviderConfig } from './model/types.js'
 import { jsonParse, jsonStringify } from './slowOperations.js'
 
 // Re-entrancy guard: prevents getConfig → logEvent → getGlobalConfig → getConfig
@@ -580,6 +580,9 @@ export type GlobalConfig = {
 
   // 用户在方舟等允许自定义模型的 Provider 中使用过的模型 ID。
   providerModels?: Partial<Record<APIProvider, string[]>>
+
+  // 用户通过 /connect 添加的自定义 Anthropic 兼容端点；凭据只存 auth.json。
+  customProviders?: CustomProviderConfig[]
 
   // Provider 专项旧配置迁移版本，与全局 migrationVersion 相互独立。
   providerMigrationVersion?: number

@@ -1,8 +1,8 @@
 import type { APIProvider } from './types.js'
 import { getProviderApiKey } from '../authStore.js'
 import {
+  getAllProviderDefinitions,
   getProviderDefinition,
-  PROVIDER_DEFINITIONS,
   resolveProviderModelReference,
 } from './providerDefinitions.js'
 
@@ -25,7 +25,7 @@ export function getAPIProvider(model?: string): APIProvider {
     if (reference) return reference.provider
   }
 
-  const configured = PROVIDER_DEFINITIONS.find(definition =>
+  const configured = getAllProviderDefinitions().find(definition =>
     Boolean(getProviderApiKey(definition.id)),
   )
   if (configured) return configured.id
@@ -49,7 +49,7 @@ export function hasCustomAnthropicBaseUrl(): boolean {
 }
 
 export function hasConfiguredCustomApi(): boolean {
-  return PROVIDER_DEFINITIONS.some(definition =>
+  return getAllProviderDefinitions().some(definition =>
     Boolean(getProviderApiKey(definition.id)),
   )
 }

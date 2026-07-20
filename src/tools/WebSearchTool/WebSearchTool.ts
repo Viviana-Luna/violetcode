@@ -204,7 +204,7 @@ export const WebSearchTool = buildTool({
     const message =
       strategy?.kind === 'client-search-provider'
         ? 'VioletCode 将把搜索关键词和域名过滤条件发送给 Exa；不会发送会话全文或模型 Provider API Key。'
-        : '当前搜索由 DeepSeek 原生网页搜索处理。'
+        : '当前搜索由模型 Provider 的端点原生网页搜索处理。'
     return {
       behavior: 'passthrough',
       message,

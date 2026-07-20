@@ -1,6 +1,6 @@
 import type { PermissionMode } from '../permissions/PermissionMode.js'
 import { parseUserSpecifiedModel } from './model.js'
-import { PROVIDER_DEFINITIONS } from './providerDefinitions.js'
+import { getAllProviderDefinitions } from './providerDefinitions.js'
 import { readAuthStore } from '../authStore.js'
 
 export type AgentModelOption = {
@@ -69,7 +69,7 @@ export function getAgentModelOptions(): AgentModelOption[] {
     },
   ]
   const store = readAuthStore()
-  for (const def of PROVIDER_DEFINITIONS) {
+  for (const def of getAllProviderDefinitions()) {
     if (!store[def.id]?.apiKey) continue
     for (const model of def.models) {
       options.push({

@@ -1,5 +1,5 @@
 // biome-ignore-all assist/source/organizeImports: ANT-ONLY import markers must not be reordered
-import { PROVIDER_DEFINITIONS } from './providerDefinitions.js'
+import { getAllProviderDefinitions } from './providerDefinitions.js'
 import { getProviderCredential } from '../authStore.js'
 import { getGlobalConfig } from '../config.js'
 import { getMainLoopModel, type ModelSetting } from './model.js'
@@ -17,7 +17,7 @@ export function getModelOptions(): ModelOption[] {
   const config = getGlobalConfig()
 
   // 从已配置凭据的 Provider 生成模型选项
-  for (const def of PROVIDER_DEFINITIONS) {
+  for (const def of getAllProviderDefinitions()) {
     if (!getProviderCredential(def.id)) continue
     for (const model of def.models) {
       const value = formatProviderModelReference(def.id, model.id)

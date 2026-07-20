@@ -1,3 +1,4 @@
+import { getCustomProviderDefinitions } from './customProviders.js'
 import type {
   APIProvider,
   ProviderDefinition,
@@ -70,8 +71,13 @@ export const PROVIDER_DEFINITIONS: ProviderDefinition[] = [
   },
 ]
 
+/** 内置 Provider + 用户在 /connect 中添加的自定义 Provider。 */
+export function getAllProviderDefinitions(): ProviderDefinition[] {
+  return [...PROVIDER_DEFINITIONS, ...getCustomProviderDefinitions()]
+}
+
 export function getProviderDefinition(id: string): ProviderDefinition | undefined {
-  return PROVIDER_DEFINITIONS.find(p => p.id === id)
+  return getAllProviderDefinitions().find(p => p.id === id)
 }
 
 export function getProviderWebSearchStrategy(
@@ -127,7 +133,7 @@ export function resolveProviderModelReference(
     }
   }
 
-  const matchingProviders = PROVIDER_DEFINITIONS.filter(definition =>
+  const matchingProviders = getAllProviderDefinitions().filter(definition =>
     definition.models.some(model => model.id === normalized),
   )
   const preferred = fallbackProvider

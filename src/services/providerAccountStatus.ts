@@ -121,7 +121,9 @@ export function getInitialProviderAccountStatus(
 ): ProviderAccountStatus {
   const { credential } = getCredentialDisplay(provider)
   if (!credential.connected) return { kind: 'not-configured', credential }
-  if (provider === 'volcengineArk') {
+  // 仅 DeepSeek 提供官方余额接口；其余 Provider（含自定义端点）直接显示已连接，
+  // 避免把凭据发往不匹配的余额端点。
+  if (provider !== 'deepseek') {
     return { kind: 'connected', credential }
   }
   return { kind: 'loading', credential }
@@ -135,7 +137,7 @@ export async function loadProviderAccountStatus(
   if (!credential.connected || !apiKey) {
     return { kind: 'not-configured', credential }
   }
-  if (provider === 'volcengineArk') {
+  if (provider !== 'deepseek') {
     return { kind: 'connected', credential }
   }
 

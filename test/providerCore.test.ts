@@ -31,14 +31,27 @@ import {
 } from '../src/utils/authStore.js'
 import { getGlobalConfig, saveGlobalConfig } from '../src/utils/config.js'
 import {
+  CUSTOM_PROVIDER_DEFAULT_CONTEXT_WINDOW,
+  generateCustomProviderId,
+  getCustomProviderApiKeyEnvVar,
+  isValidCustomModelId,
+  isValidCustomProviderBaseUrl,
+  parseCustomModelContextWindow,
+  upsertCustomProvider,
+} from '../src/utils/model/customProviders.js'
+import { getContextWindowForModel } from '../src/utils/context.js'
+import {
   getModelCapabilities,
   normalizeModelStringForAPI,
 } from '../src/utils/model/model.js'
 import {
   PROVIDER_DEFINITIONS,
+  getAllProviderDefinitions,
+  getProviderDefinition,
   getProviderModel,
   resolveProviderModelReference,
 } from '../src/utils/model/providerDefinitions.js'
+import { getModelOptions } from '../src/utils/model/modelOptions.js'
 import {
   getRememberedProviderModels,
   rememberProviderModel,
@@ -134,6 +147,7 @@ beforeEach(() => {
     userCustomModelProfiles: undefined,
     userAddedModelOptions: undefined,
     activeProviderProfileId: undefined,
+    customProviders: undefined,
   }))
 })
 
@@ -594,5 +608,276 @@ describe('SDK 请求路由快照', () => {
     expect(request.body.model).toBe('ark-code-latest')
     expect(request.body.thinking).toBeUndefined()
     expect(JSON.stringify(request.body)).not.toContain('image')
+  })
+})
+
+describe('自定义 Provider 端点', () => {
+  test('config.json 中的畸形自定义条目被跳过，不影响内置 Provider 链路', () => {
+    saveGlobalConfig(current => ({
+      ...current,
+      customProviders: [
+        { id: 'not-custom-prefix' },
+        {
+          id: 'custom-broken',
+          label: '坏条目',
+          baseUrl: 'https://broken.example',
+          authMethod: 'bearer',
+          webSearch: 'native',
+          models: 'not-an-array',
+        },
+      ] as never,
+    }))
+
+    expect(getAllProviderDefinitions().map(def => def.id)).toEqual([
+      'deepseek',
+      'volcengineArk',
+    ])
+    expect(getProviderDefinition('deepseek')?.label).toBe('DeepSeek')
+  })
+
+  test('输入校验：baseUrl、模型 ID 与上下文窗口', () => {
+    expect(isValidCustomProviderBaseUrl('https://example.com/anthropic')).toBe(true)
+    expect(isValidCustomProviderBaseUrl('http://127.0.0.1:8317/v1')).toBe(true)
+    expect(isValidCustomProviderBaseUrl('ftp://example.com')).toBe(false)
+    expect(isValidCustomProviderBaseUrl('not-a-url')).toBe(false)
+
+    expect(isValidCustomModelId('my-model_v2.1')).toBe(true)
+    expect(isValidCustomModelId('')).toBe(false)
+    expect(isValidCustomModelId('bad model')).toBe(false)
+
+    expect(parseCustomModelContextWindow('')).toBeUndefined()
+    expect(parseCustomModelContextWindow('  ')).toBeUndefined()
+    expect(parseCustomModelContextWindow('128000')).toBe(128_000)
+    expect(parseCustomModelContextWindow('0')).toBeNull()
+    expect(parseCustomModelContextWindow('-5')).toBeNull()
+    expect(parseCustomModelContextWindow('abc')).toBeNull()
+    expect(parseCustomModelContextWindow('1.5')).toBeNull()
+  })
+
+  test('upsert 拒绝非法输入，不写入半成品配置', () => {
+    const valid = {
+      baseUrl: 'https://custom.example/anthropic',
+      authMethod: 'bearer' as const,
+      webSearch: 'native' as const,
+      models: [{ id: 'custom-pro' }],
+    }
+    expect(() =>
+      upsertCustomProvider({ ...valid, baseUrl: 'not-a-url' }),
+    ).toThrow('Base URL')
+    expect(() => upsertCustomProvider({ ...valid, models: [] })).toThrow(
+      '至少需要添加一个模型',
+    )
+    expect(() =>
+      upsertCustomProvider({ ...valid, models: [{ id: 'bad model' }] }),
+    ).toThrow('模型 ID')
+    expect(() =>
+      upsertCustomProvider({
+        ...valid,
+        models: [{ id: 'dup' }, { id: 'dup' }],
+      }),
+    ).toThrow('重复')
+    expect(() =>
+      upsertCustomProvider({
+        ...valid,
+        models: [{ id: 'bad-ctx', contextWindow: -1 }],
+      }),
+    ).toThrow('上下文窗口')
+    expect(getGlobalConfig().customProviders ?? []).toHaveLength(0)
+  })
+
+  test('注册后进入合并定义列表，模型能力按用户配置与保守默认生成', () => {
+    const entry = upsertCustomProvider({
+      baseUrl: 'https://custom.example/anthropic/',
+      authMethod: 'bearer',
+      webSearch: 'native',
+      models: [
+        { id: 'custom-pro', contextWindow: 128_000, thinking: true },
+        { id: 'custom-flash' },
+      ],
+    })
+
+    expect(entry.id).toBe(generateCustomProviderId('https://custom.example/anthropic'))
+    expect(entry.label).toBe('custom.example')
+    expect(getAllProviderDefinitions().map(def => def.id)).toContain(entry.id)
+
+    const definition = getProviderDefinition(entry.id)
+    expect(definition?.baseUrl).toBe('https://custom.example/anthropic')
+    expect(definition?.authMethod).toBe('bearer')
+    expect(definition?.allowCustomModels).toBe(false)
+    expect(definition?.webSearch).toEqual({
+      kind: 'native-anthropic-server-tool',
+      toolType: 'web_search_20250305',
+      maxUses: 3,
+    })
+
+    expect(getProviderModel(entry.id, 'custom-pro')?.model).toMatchObject({
+      contextWindow: 128_000,
+      maxOutputTokens: 32_000,
+      defaultMaxOutputTokens: 32_000,
+      capabilities: {
+        thinking: true,
+        toolUse: true,
+        images: false,
+        betaHeaders: false,
+      },
+    })
+    // 未配置 contextWindow/thinking 的模型回落到保守默认
+    expect(getProviderModel(entry.id, 'custom-flash')?.model).toMatchObject({
+      contextWindow: CUSTOM_PROVIDER_DEFAULT_CONTEXT_WINDOW,
+      capabilities: { thinking: false, toolUse: true },
+    })
+    // 未列出的模型不被接受
+    expect(getProviderModel(entry.id, 'unlisted-model')).toBeUndefined()
+  })
+
+  test('provider/model 引用解析与上下文窗口读取走自定义定义', () => {
+    const entry = upsertCustomProvider({
+      baseUrl: 'https://custom.example/anthropic',
+      authMethod: 'x-api-key',
+      webSearch: 'exa',
+      models: [{ id: 'custom-pro', contextWindow: 96_000, thinking: true }],
+    })
+
+    expect(
+      resolveProviderModelReference(`${entry.id}/custom-pro`),
+    ).toEqual({
+      provider: entry.id,
+      modelId: 'custom-pro',
+      value: `${entry.id}/custom-pro`,
+    })
+    expect(normalizeModelStringForAPI(`${entry.id}/custom-pro`)).toBe(
+      'custom-pro',
+    )
+    expect(getContextWindowForModel(`${entry.id}/custom-pro`)).toBe(96_000)
+    expect(getModelCapabilities(`${entry.id}/custom-pro`)?.thinking).toBe(true)
+    expect(getProviderDefinition(entry.id)?.webSearch).toEqual({
+      kind: 'client-search-provider',
+      provider: 'exa',
+    })
+  })
+
+  test('凭据写入 auth.json 并可由专属环境变量覆盖，读写往返不丢失', () => {
+    const entry = upsertCustomProvider({
+      baseUrl: 'https://custom.example/anthropic',
+      authMethod: 'bearer',
+      webSearch: 'native',
+      models: [{ id: 'custom-pro' }],
+    })
+    setProviderApiKey(entry.id, 'stored-custom-key')
+
+    // 重新读取（模拟跨进程）后自定义凭据仍在
+    expect(readAuthStore()[entry.id]?.apiKey).toBe('stored-custom-key')
+    expect(getProviderCredential(entry.id)).toEqual({
+      apiKey: 'stored-custom-key',
+      source: 'auth-store',
+    })
+
+    const envVar = getCustomProviderApiKeyEnvVar(entry.id)
+    const original = process.env[envVar]
+    process.env[envVar] = 'env-custom-key'
+    try {
+      expect(getProviderCredential(entry.id)).toEqual({
+        apiKey: 'env-custom-key',
+        source: 'environment',
+      })
+    } finally {
+      if (original === undefined) delete process.env[envVar]
+      else process.env[envVar] = original
+    }
+  })
+
+  test('账户状态不查询 DeepSeek 余额接口，直接显示已连接', async () => {
+    const entry = upsertCustomProvider({
+      baseUrl: 'https://custom.example/anthropic',
+      authMethod: 'bearer',
+      webSearch: 'native',
+      models: [{ id: 'custom-pro' }],
+    })
+    setProviderApiKey(entry.id, 'custom-status-key')
+
+    let requestCount = 0
+    const status = await loadProviderAccountStatus(entry.id, {
+      fetchImpl: async () => {
+        requestCount += 1
+        return new Response('{}')
+      },
+    })
+
+    expect(requestCount).toBe(0)
+    expect(status).toEqual({
+      kind: 'connected',
+      credential: { connected: true, sourceLabel: '本地凭据' },
+    })
+  })
+
+  test('模型选项包含已配置凭据的自定义 Provider 模型', () => {
+    const entry = upsertCustomProvider({
+      baseUrl: 'https://custom.example/anthropic',
+      authMethod: 'bearer',
+      webSearch: 'native',
+      models: [{ id: 'custom-pro' }, { id: 'custom-flash' }],
+    })
+
+    expect(
+      getModelOptions().some(option => option.value === `${entry.id}/custom-pro`),
+    ).toBe(false)
+
+    setProviderApiKey(entry.id, 'custom-options-key')
+    const values = getModelOptions().map(option => option.value)
+    expect(values).toContain(`${entry.id}/custom-pro`)
+    expect(values).toContain(`${entry.id}/custom-flash`)
+  })
+
+  test('请求路由快照：Bearer 与 X-Api-Key 按认证方式分流', async () => {
+    const bearerEntry = upsertCustomProvider({
+      baseUrl: 'https://bearer.example/anthropic',
+      authMethod: 'bearer',
+      webSearch: 'native',
+      models: [{ id: 'pro' }],
+    })
+    const keyEntry = upsertCustomProvider({
+      baseUrl: 'https://key.example/anthropic',
+      authMethod: 'x-api-key',
+      webSearch: 'native',
+      models: [{ id: 'pro' }],
+    })
+
+    const bearerCaptures: CapturedRequest[] = []
+    const bearerClient = await getAnthropicClient({
+      apiKey: 'explicit-bearer',
+      maxRetries: 0,
+      model: `${bearerEntry.id}/pro`,
+      fetchOverride: createCaptureFetch(bearerCaptures),
+    })
+    await bearerClient.messages.create({
+      model: normalizeModelStringForAPI(`${bearerEntry.id}/pro`),
+      max_tokens: 32,
+      messages: [{ role: 'user', content: 'ping' }],
+    })
+    expect(bearerCaptures[0]!.url).toBe(
+      'https://bearer.example/anthropic/v1/messages',
+    )
+    expect(bearerCaptures[0]!.headers.get('authorization')).toBe(
+      'Bearer explicit-bearer',
+    )
+    expect(bearerCaptures[0]!.headers.get('x-api-key')).toBeNull()
+    expect(bearerCaptures[0]!.body.model).toBe('pro')
+
+    const keyCaptures: CapturedRequest[] = []
+    const keyClient = await getAnthropicClient({
+      apiKey: 'explicit-x-api-key',
+      maxRetries: 0,
+      model: `${keyEntry.id}/pro`,
+      fetchOverride: createCaptureFetch(keyCaptures),
+    })
+    await keyClient.messages.create({
+      model: normalizeModelStringForAPI(`${keyEntry.id}/pro`),
+      max_tokens: 32,
+      messages: [{ role: 'user', content: 'ping' }],
+    })
+    expect(keyCaptures[0]!.url).toBe('https://key.example/anthropic/v1/messages')
+    expect(keyCaptures[0]!.headers.get('x-api-key')).toBe('explicit-x-api-key')
+    expect(keyCaptures[0]!.headers.get('authorization')).toBeNull()
+    expect(keyCaptures[0]!.body.model).toBe('pro')
   })
 })

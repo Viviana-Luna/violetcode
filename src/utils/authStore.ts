@@ -8,7 +8,7 @@ import {
 } from 'fs'
 import { join } from 'path'
 import { getVioletConfigHomeDir } from './envUtils.js'
-import { PROVIDER_DEFINITIONS } from './model/providerDefinitions.js'
+import { getProviderDefinition } from './model/providerDefinitions.js'
 import type { APIProvider, SearchProviderId } from './model/types.js'
 
 type ApiKeyEntry = { apiKey: string }
@@ -39,18 +39,22 @@ export function readAuthStore(): AuthStore {
     }
 
     const store: AuthStore = {}
-    for (const definition of PROVIDER_DEFINITIONS) {
-      const entry = (parsed as Record<string, unknown>)[definition.id]
+    // Provider id 不限于内置定义：用户自定义 Provider 的凭据同样按 id 存放，
+    // 这里逐键校验并保留，读写往返不得丢弃自定义条目。
+    for (const [providerId, entry] of Object.entries(
+      parsed as Record<string, unknown>,
+    )) {
+      if (providerId === 'searchServices') continue
       if (entry === undefined) continue
       if (
         !entry ||
         typeof entry !== 'object' ||
         typeof (entry as { apiKey?: unknown }).apiKey !== 'string'
       ) {
-        throw new Error(`Provider ${definition.id} 的凭据格式无效`)
+        throw new Error(`Provider ${providerId} 的凭据格式无效`)
       }
       const apiKey = (entry as { apiKey: string }).apiKey.trim()
-      if (apiKey) store[definition.id] = { apiKey }
+      if (apiKey) store[providerId] = { apiKey }
     }
 
     const searchServices = (parsed as Record<string, unknown>).searchServices
@@ -115,7 +119,7 @@ export function writeAuthStore(store: AuthStore): void {
 export function getProviderCredential(
   provider: APIProvider,
 ): ProviderCredential | undefined {
-  const definition = PROVIDER_DEFINITIONS.find(item => item.id === provider)
+  const definition = getProviderDefinition(provider)
   const environmentApiKey = definition
     ? process.env[definition.apiKeyEnvVar]?.trim()
     : undefined

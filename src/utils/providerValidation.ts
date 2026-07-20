@@ -1,5 +1,5 @@
 import { readAuthStore } from './authStore.js'
-import { PROVIDER_DEFINITIONS } from './model/providerDefinitions.js'
+import { getAllProviderDefinitions } from './model/providerDefinitions.js'
 import { sanitizeApiKey } from './providerSecrets.js'
 import type { APIProvider } from './model/types.js'
 
@@ -25,7 +25,7 @@ export function validateProviderEnvironment(): ProviderValidationResult {
   const warnings: string[] = []
   let provider: APIProvider | undefined
 
-  for (const def of PROVIDER_DEFINITIONS) {
+  for (const def of getAllProviderDefinitions()) {
     const apiKey = sanitizeApiKey(store[def.id]?.apiKey)
     if (apiKey) {
       provider = def.id
