@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react'
 import { setInitialMainLoopModel } from '../bootstrap/state.js'
 import { useTerminalSize } from '../hooks/useTerminalSize.js'
 import { Box, Text } from '../ink.js'
+import { useSetAppState } from '../state/AppState.js'
 import {
   getProviderCredential,
   getSearchServiceApiKeyEnvVar,
@@ -97,15 +98,16 @@ function getProviderOptionDescription(provider: APIProvider): string {
     : providerDescription
 }
 
-function configureFirstProvider(provider: APIProvider): void {
+function configureFirstProvider(provider: APIProvider): string | null {
   const definition = getProviderDefinition(provider)
   const modelId = definition?.models[0]?.id
-  if (!modelId) return
+  if (!modelId) return null
 
   const model = formatProviderModelReference(provider, modelId)
   updateSettingsForSource('userSettings', { model })
   setInitialMainLoopModel(model)
   applyProviderEnv(process.env, provider, modelId)
+  return model
 }
 
 export function CustomApiSetup({
@@ -114,6 +116,7 @@ export function CustomApiSetup({
   initialProvider = 'deepseek',
 }: Props): React.ReactNode {
   const { columns } = useTerminalSize()
+  const setAppState = useSetAppState()
   const [step, setStep] = useState<Step>('provider')
   const [provider, setProvider] = useState<APIProvider>(initialProvider)
   const [credentialTarget, setCredentialTarget] =
@@ -160,6 +163,21 @@ export function CustomApiSetup({
     setApiKeyCursorOffset(0)
     setTextCursorOffset(0)
     setStep('custom-base-url')
+  }
+
+  // /connect 在运行中的会话内完成时，必须同步切换当前会话模型；
+  // 否则后续请求继续按旧 Provider 路由（曾导致凭据错发与 401）。
+  function activateModel(model: string | null): void {
+    if (!model) return
+    setAppState(previous => ({
+      ...previous,
+      mainLoopModel: model,
+      mainLoopModelForSession: null,
+    }))
+  }
+
+  function activateFirstProvider(provider: APIProvider): void {
+    activateModel(configureFirstProvider(provider))
   }
 
   function selectProvider(nextProvider: APIProvider): void {
@@ -233,7 +251,7 @@ export function CustomApiSetup({
           definition => Boolean(getProviderCredential(definition.id)),
         )
         setProviderApiKey(provider, normalized)
-        if (!hadConfiguredProvider) configureFirstProvider(provider)
+        if (!hadConfiguredProvider) activateFirstProvider(provider)
       }
       continueAfterCredential()
     } catch (saveError) {
@@ -327,6 +345,7 @@ export function CustomApiSetup({
       updateSettingsForSource('userSettings', { model })
       setInitialMainLoopModel(model)
       applyProviderEnv(process.env, entry.id, firstModelId)
+      activateModel(model)
       setProvider(entry.id)
       if (customWebSearch === 'exa' && !getSearchServiceCredential('exa')) {
         // 复用能力配置页补录 Exa 凭据，与火山方舟流程一致。
@@ -439,7 +458,7 @@ export function CustomApiSetup({
                       Boolean(getProviderCredential(candidate.id)),
                   )
                   if (!hasOtherProvider && !process.env.VIOLET_PROVIDER) {
-                    configureFirstProvider(provider)
+                    activateFirstProvider(provider)
                   }
                 }
                 continueAfterCredential()

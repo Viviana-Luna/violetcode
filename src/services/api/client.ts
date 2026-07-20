@@ -82,7 +82,10 @@ export async function getAnthropicClient({
   const clientConfig: ConstructorParameters<typeof Anthropic>[0] = {
     baseURL: def.baseUrl,
     apiKey: def.authMethod === 'x-api-key' ? effectiveApiKey : null,
-    authToken: def.authMethod === 'bearer' ? effectiveApiKey : undefined,
+    // 显式传 null 而非 undefined：SDK 在 undefined 时会回退读取
+    // process.env.ANTHROPIC_AUTH_TOKEN，可能把其他 Provider 的凭据
+    // 发往当前 Provider 的服务器（跨 Provider 凭据泄漏）。
+    authToken: def.authMethod === 'bearer' ? effectiveApiKey : null,
     defaultHeaders,
     maxRetries,
     timeout,

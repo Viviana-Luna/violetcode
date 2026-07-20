@@ -572,6 +572,28 @@ describe('SDK 请求路由快照', () => {
     })
   })
 
+  test('x-api-key Provider 的请求不携带环境变量中其他 Provider 的 AUTH_TOKEN', async () => {
+    // 回归：会话在 Provider A（bearer）环境下为 Provider B（x-api-key）构造
+    // 客户端时，SDK 的 authToken env 回退不得把 A 的凭据发给 B 的服务器。
+    process.env.ANTHROPIC_AUTH_TOKEN = 'other-provider-bearer-token'
+    const captures: CapturedRequest[] = []
+    const client = await getAnthropicClient({
+      apiKey: 'explicit-deepseek',
+      maxRetries: 0,
+      model: 'deepseek/deepseek-v4-pro',
+      fetchOverride: createCaptureFetch(captures),
+    })
+    await client.messages.create({
+      model: 'deepseek-v4-pro',
+      max_tokens: 1,
+      messages: [{ role: 'user', content: 'ping' }],
+    })
+
+    const request = captures[0]!
+    expect(request.headers.get('x-api-key')).toBe('explicit-deepseek')
+    expect(request.headers.get('authorization')).toBeNull()
+  })
+
   test('火山方舟使用 Bearer，且保守请求不含 beta、图片或 thinking', async () => {
     const captures: CapturedRequest[] = []
     process.env.VOLCENGINE_ARK_API_KEY = 'environment-ark'
