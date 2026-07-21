@@ -6,6 +6,7 @@ import {
   getDefaultCharacters,
   getSpinnerFrames,
 } from '../src/components/Spinner/utils.js'
+import { getThemePickerLayout } from '../src/utils/themePickerLayout.js'
 
 const root = join(import.meta.dir, '..')
 
@@ -122,6 +123,35 @@ describe('VioletCode 品牌边界', () => {
     expect(overview).toContain("row(\n          'BALANCE'")
     expect(overview).not.toContain("'QUOTA'")
     expect(overview).toContain('Agent Plan')
+  })
+
+  test('主题选择器按父布局实际宽度收敛极窄终端内容', () => {
+    for (const availableWidth of [20, 28, 36, 44, 48]) {
+      const layout = getThemePickerLayout(availableWidth, false)
+      expect(layout.contentWidth).toBe(availableWidth)
+      expect(stringWidth(layout.heading)).toBeLessThanOrEqual(
+        layout.contentWidth,
+      )
+      for (const option of layout.options) {
+        expect(stringWidth(option.label) + 5).toBeLessThanOrEqual(
+          layout.contentWidth,
+        )
+      }
+    }
+
+    expect(getThemePickerLayout(40, false).options.map(option => option.value))
+      .toEqual([
+        'dark',
+        'light',
+        'dark-daltonized',
+        'light-daltonized',
+        'dark-ansi',
+        'light-ansi',
+      ])
+    expect(getThemePickerLayout(20, true).options[0]).toEqual({
+      label: 'Auto',
+      value: 'auto',
+    })
   })
 
   test('项目说明入口统一使用 AGENTS.md', async () => {

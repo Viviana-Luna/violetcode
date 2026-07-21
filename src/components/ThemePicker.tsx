@@ -1,6 +1,7 @@
 import { c as _c } from "react/compiler-runtime";
 import { feature } from 'bun:bundle';
 import * as React from 'react';
+import { useContentWidth } from '../context/contentWidthContext.js';
 import { useExitOnCtrlCDWithKeybindings } from '../hooks/useExitOnCtrlCDWithKeybindings.js';
 import { useTerminalSize } from '../hooks/useTerminalSize.js';
 import { Box, Text, usePreviewTheme, useTheme, useThemeSetting } from '../ink.js';
@@ -11,6 +12,7 @@ import { useAppState, useSetAppState } from '../state/AppState.js';
 import { gracefulShutdown } from '../utils/gracefulShutdown.js';
 import { updateSettingsForSource } from '../utils/settings/settings.js';
 import type { ThemeSetting } from '../utils/theme.js';
+import { getThemePickerLayout } from '../utils/themePickerLayout.js';
 import { Select } from './CustomSelect/index.js';
 import { Byline } from './design-system/Byline.js';
 import { KeyboardShortcutHint } from './design-system/KeyboardShortcutHint.js';
@@ -48,6 +50,12 @@ export function ThemePicker(t0) {
   const {
     columns
   } = useTerminalSize();
+  const availableWidth = useContentWidth(columns);
+  const {
+    contentWidth,
+    heading,
+    options: themeOptions
+  } = getThemePickerLayout(availableWidth, feature("AUTO_THEME"));
   let t6;
   if ($[0] === Symbol.for("react.memo_cache_sentinel")) {
     t6 = getColorModuleUnavailableReason();
@@ -108,35 +116,6 @@ export function ThemePicker(t0) {
   }
   useKeybinding("theme:toggleSyntaxHighlighting", t8, t9);
   const exitState = useExitOnCtrlCDWithKeybindings(skipExitHandling ? _temp2 : undefined);
-  let t10;
-  if ($[7] === Symbol.for("react.memo_cache_sentinel")) {
-    t10 = [...(feature("AUTO_THEME") ? [{
-      label: "Auto (match terminal)",
-      value: "auto" as const
-    }] : []), {
-      label: "Dark mode",
-      value: "dark"
-    }, {
-      label: "Light mode",
-      value: "light"
-    }, {
-      label: "Dark mode (colorblind-friendly)",
-      value: "dark-daltonized"
-    }, {
-      label: "Light mode (colorblind-friendly)",
-      value: "light-daltonized"
-    }, {
-      label: "Dark mode (ANSI colors only)",
-      value: "dark-ansi"
-    }, {
-      label: "Light mode (ANSI colors only)",
-      value: "light-ansi"
-    }];
-    $[7] = t10;
-  } else {
-    t10 = $[7];
-  }
-  const themeOptions = t10;
   let t11;
   if ($[8] !== showIntroText) {
     t11 = showIntroText ? <Text>Let's get started.</Text> : <Text bold={true} color="permission">Theme</Text>;
@@ -145,13 +124,7 @@ export function ThemePicker(t0) {
   } else {
     t11 = $[9];
   }
-  let t12;
-  if ($[10] === Symbol.for("react.memo_cache_sentinel")) {
-    t12 = <Text bold={true}>Choose the text style that looks best with your terminal</Text>;
-    $[10] = t12;
-  } else {
-    t12 = $[10];
-  }
+  const t12 = <Text bold={true}>{heading}</Text>;
   let t13;
   if ($[11] !== helpText || $[12] !== showHelpTextBelow) {
     t13 = helpText && !showHelpTextBelow && <Text dimColor={true}>{helpText}</Text>;
@@ -218,16 +191,7 @@ export function ThemePicker(t0) {
   } else {
     t18 = $[29];
   }
-  let t19;
-  if ($[30] !== t11 || $[31] !== t14 || $[32] !== t18) {
-    t19 = <Box flexDirection="column" gap={1}>{t11}{t14}{t18}</Box>;
-    $[30] = t11;
-    $[31] = t14;
-    $[32] = t18;
-    $[33] = t19;
-  } else {
-    t19 = $[33];
-  }
+  const t19 = <Box flexDirection="column" gap={1} width={contentWidth}>{t11}{t14}{t18}</Box>;
   let t20;
   if ($[34] === Symbol.for("react.memo_cache_sentinel")) {
     t20 = {
@@ -242,9 +206,9 @@ export function ThemePicker(t0) {
     t20 = $[34];
   }
   let t21;
-  if ($[35] !== columns) {
-    t21 = <Box flexDirection="column" borderTop={true} borderBottom={true} borderLeft={false} borderRight={false} borderStyle="dashed" borderColor="subtle"><StructuredDiff patch={t20} dim={false} filePath="demo.js" firstLine={null} width={columns} /></Box>;
-    $[35] = columns;
+  if ($[35] !== contentWidth) {
+    t21 = <Box flexDirection="column" borderTop={true} borderBottom={true} borderLeft={false} borderRight={false} borderStyle="dashed" borderColor="subtle"><StructuredDiff patch={t20} dim={false} filePath="demo.js" firstLine={null} width={contentWidth} /></Box>;
+    $[35] = contentWidth;
     $[36] = t21;
   } else {
     t21 = $[36];
@@ -276,7 +240,7 @@ export function ThemePicker(t0) {
   } else {
     t25 = $[44];
   }
-  const content = t25;
+  const content = <Box flexDirection="column" width={contentWidth}>{t25}</Box>;
   if (!showIntroText) {
     let t26;
     if ($[45] !== content) {

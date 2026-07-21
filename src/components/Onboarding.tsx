@@ -1,5 +1,7 @@
 import React, { useMemo, useState } from 'react'
+import { ContentWidthContext } from '../context/contentWidthContext.js'
 import { useExitOnCtrlCDWithKeybindings } from '../hooks/useExitOnCtrlCDWithKeybindings.js'
+import { useTerminalSize } from '../hooks/useTerminalSize.js'
 import { Box, Text, useTheme } from '../ink.js'
 import { needsProviderSetup } from '../utils/model/providers.js'
 import type { APIProvider } from '../utils/model/types.js'
@@ -21,6 +23,7 @@ export function Onboarding({
 }: Props): React.ReactNode {
   const [stepIndex, setStepIndex] = useState(0)
   const [, setTheme] = useTheme()
+  const { columns } = useTerminalSize()
   const exitState = useExitOnCtrlCDWithKeybindings()
   const steps = useMemo<StepId[]>(
     () => (needsProviderSetup(requiredProvider) ? ['provider', 'theme'] : ['theme']),
@@ -48,15 +51,17 @@ export function Onboarding({
             initialProvider={requiredProvider}
           />
         ) : (
-          <Box marginX={1}>
-            <ThemePicker
-              onThemeSelect={selectTheme}
-              showIntroText
-              helpText="稍后可运行 /theme 修改主题"
-              hideEscToCancel
-              skipExitHandling
-            />
-          </Box>
+          <ContentWidthContext.Provider value={Math.max(columns - 2, 1)}>
+            <Box marginX={1}>
+              <ThemePicker
+                onThemeSelect={selectTheme}
+                showIntroText
+                helpText="稍后可运行 /theme 修改主题"
+                hideEscToCancel
+                skipExitHandling
+              />
+            </Box>
+          </ContentWidthContext.Provider>
         )}
         {exitState.pending ? (
           <Box padding={1}>
