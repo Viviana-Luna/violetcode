@@ -5,7 +5,6 @@ coverage/
 *.log
 .env
 .env.*
-/.agent/
 
 # 运行时目录
 /.superpowers/
