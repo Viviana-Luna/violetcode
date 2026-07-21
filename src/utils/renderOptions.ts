@@ -1,6 +1,7 @@
 import { openSync } from 'fs'
 import { ReadStream } from 'tty'
 import type { RenderOptions } from '../ink.js'
+import { hasActiveQueries } from './activeQueryRegistry.js'
 import { isEnvTruthy } from './envUtils.js'
 import { logError } from './log.js'
 
@@ -69,7 +70,12 @@ export function getBaseRenderOptions(
   exitOnCtrlC: boolean = false,
 ): RenderOptions {
   const stdin = getStdinOverride()
-  const options: RenderOptions = { exitOnCtrlC }
+  const options: RenderOptions = {
+    exitOnCtrlC,
+    // Bun 可能把查询期间滞后读取的 Escape 与后续文本合并；解析器仅会
+    // 拆分语法上含糊的 ESC/Meta 序列，结构化终端序列不受影响。
+    shouldSplitAmbiguousEscapeSequences: hasActiveQueries,
+  }
   if (stdin) {
     options.stdin = stdin
   }

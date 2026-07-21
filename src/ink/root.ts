@@ -41,6 +41,11 @@ export type RenderOptions = {
    * Called after each frame render with timing and flicker information.
    */
   onFrame?: (event: FrameEvent) => void
+
+  /**
+   * 决定是否将含糊的 ESC/Meta 序列拆为独立 Escape 键与后续文本。
+   */
+  shouldSplitAmbiguousEscapeSequences?: () => boolean
 }
 
 export type Instance = {
@@ -133,6 +138,7 @@ export async function createRoot({
   exitOnCtrlC = true,
   patchConsole = true,
   onFrame,
+  shouldSplitAmbiguousEscapeSequences,
 }: RenderOptions = {}): Promise<Root> {
   // See wrappedRender — preserve microtask boundary from the old WASM await.
   await Promise.resolve()
@@ -143,6 +149,7 @@ export async function createRoot({
     exitOnCtrlC,
     patchConsole,
     onFrame,
+    shouldSplitAmbiguousEscapeSequences,
   })
 
   // Register in the instances map so that code that looks up the Ink

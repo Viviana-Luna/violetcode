@@ -72,6 +72,7 @@ export type Options = {
   patchConsole: boolean;
   waitUntilExit?: () => Promise<void>;
   onFrame?: (event: FrameEvent) => void;
+  shouldSplitAmbiguousEscapeSequences?: () => boolean;
 };
 export default class Ink {
   private readonly log: LogUpdate;
@@ -1455,7 +1456,7 @@ export default class Ink {
       clearTimeout(this.firstRenderFallbackTimer);
       this.firstRenderFallbackTimer = null;
     }
-    const tree = <App stdin={this.options.stdin} stdout={this.options.stdout} stderr={this.options.stderr} exitOnCtrlC={this.options.exitOnCtrlC} onExit={this.unmount} terminalColumns={this.terminalColumns} terminalRows={this.terminalRows} selection={this.selection} onSelectionChange={this.notifySelectionChange} onClickAt={this.dispatchClick} onHoverAt={this.dispatchHover} getHyperlinkAt={this.getHyperlinkAt} onOpenHyperlink={this.openHyperlink} onMultiClick={this.handleMultiClick} onSelectionDrag={this.handleSelectionDrag} onStdinResume={this.reassertTerminalModes} onCursorDeclaration={this.setCursorDeclaration} dispatchKeyboardEvent={this.dispatchKeyboardEvent}>
+    const tree = <App stdin={this.options.stdin} stdout={this.options.stdout} stderr={this.options.stderr} exitOnCtrlC={this.options.exitOnCtrlC} onExit={this.unmount} terminalColumns={this.terminalColumns} terminalRows={this.terminalRows} selection={this.selection} onSelectionChange={this.notifySelectionChange} onClickAt={this.dispatchClick} onHoverAt={this.dispatchHover} getHyperlinkAt={this.getHyperlinkAt} onOpenHyperlink={this.openHyperlink} onMultiClick={this.handleMultiClick} onSelectionDrag={this.handleSelectionDrag} onStdinResume={this.reassertTerminalModes} onCursorDeclaration={this.setCursorDeclaration} dispatchKeyboardEvent={this.dispatchKeyboardEvent} shouldSplitAmbiguousEscapeSequences={this.options.shouldSplitAmbiguousEscapeSequences}>
         <TerminalWriteProvider value={this.writeRaw}>
           {node}
         </TerminalWriteProvider>

@@ -193,6 +193,17 @@ export const INITIAL_STATE: KeyParseState = {
   pasteBuffer: '',
 }
 
+export type KeyParseOptions = {
+  /**
+   * 将语法上含糊的 ESC 序列解释为独立 Escape 键与后续文本。
+   *
+   * 终端协议无法区分 `Alt+/` 与先按 `Esc` 再输入 `/`。调用方只应在
+   * 已知 stdin 可能把相邻用户操作合并为一个 chunk 时启用；CSI、SS3、
+   * OSC、DCS、APC 等结构化序列始终保持完整。
+   */
+  splitAmbiguousEscapeSequences?: boolean
+}
+
 function inputToString(input: Buffer | string): string {
   if (Buffer.isBuffer(input)) {
     if (input[0]! > 127 && input[1] === undefined) {
@@ -213,9 +224,15 @@ function inputToString(input: Buffer | string): string {
 export function parseMultipleKeypresses(
   prevState: KeyParseState,
   input: Buffer | string | null = '',
+  options?: KeyParseOptions,
 ): [ParsedInput[], KeyParseState] {
   const isFlush = input === null
   const inputString = isFlush ? '' : inputToString(input)
+  const splitAmbiguousEscapeSequences =
+    options?.splitAmbiguousEscapeSequences === true &&
+    !isFlush &&
+    !prevState.incomplete &&
+    prevState.mode !== 'IN_PASTE'
 
   // Get or create tokenizer
   const tokenizer = prevState._tokenizer ?? createTokenizer({ x10Mouse: true })
@@ -243,6 +260,18 @@ export function parseMultipleKeypresses(
       } else if (inPaste) {
         // Sequences inside paste are treated as literal text
         pasteBuffer += token.value
+      } else if (
+        splitAmbiguousEscapeSequences &&
+        token.family === 'escape' &&
+        token.value.length > 1 &&
+        token.value.charCodeAt(0) === 0x1b
+      ) {
+        // 通用 ESC 序列与 Meta 输入在协议上无法区分。Bun 可能把滞后的
+        // Escape 取消操作和随后输入的文本合并到同一 chunk；这里保留两次
+        // 用户操作，避免 Escape 丢失且部分文本被吞成 Meta 键。结构化 ANSI
+        // 序列族不会进入此分支，因此焦点、导航和终端响应仍保持原子性。
+        keys.push(parseKeypress('\x1b'))
+        keys.push(parseKeypress(token.value.slice(1)))
       } else {
         const response = parseTerminalResponse(token.value)
         if (response) {

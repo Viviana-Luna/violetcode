@@ -1,6 +1,5 @@
 import React, { PureComponent, type ReactNode } from 'react';
 import { updateLastInteractionTime } from '../../bootstrap/state.js';
-import { hasActiveQueries } from '../../utils/activeQueryRegistry.js';
 import { logForDebugging } from '../../utils/debug.js';
 import { stopCapturingEarlyInput } from '../../utils/earlyInput.js';
 import { isEnvTruthy } from '../../utils/envUtils.js';
@@ -86,6 +85,8 @@ type Props = {
   // Dispatch a keyboard event through the DOM tree. Called for each
   // parsed key alongside the legacy EventEmitter path.
   readonly dispatchKeyboardEvent: (parsedKey: ParsedKey) => void;
+  // 由应用层决定何时解决 ESC/Meta 的协议歧义，Ink 不依赖业务查询状态。
+  readonly shouldSplitAmbiguousEscapeSequences?: () => boolean;
 };
 
 // Multi-click detection thresholds. 500ms is the macOS default; a small
@@ -308,27 +309,10 @@ export default class App extends PureComponent<Props, State> {
 
   // Process input through the parser and handle the results
   processInput = (input: string | Buffer | null): void => {
-    // 活动查询期间，Bun 会把滞后读取的 Esc 与后续按键打包进同一 chunk；
-    // 若按常规解析，Esc 会与后续可打印字节合并为 meta 序列，取消被吞掉、
-    // 用户文本被截断（实测 Esc + "/exit" 变成 meta "/e" + "xit"）。
-    // 此处把 chunk 开头的 Esc 先单独冲洗为独立 Escape 键，再处理剩余字节。
-    // 取舍：活动查询期间 Esc 取消的可靠性优先于 Alt/meta 组合键——后者
-    // 在此期间会被拆成 Escape + 字母；空闲时不受影响，meta 组合键正常。
-    if (
-      typeof input === 'string' &&
-      input.length > 1 &&
-      input.charCodeAt(0) === 0x1b &&
-      !this.keyParseState.incomplete &&
-      this.keyParseState.mode !== 'IN_PASTE' &&
-      hasActiveQueries()
-    ) {
-      this.processInput('\x1b');
-      this.processInput(null);
-      this.processInput(input.slice(1));
-      return;
-    }
     // Parse input using our state machine
-    const [keys, newState] = parseMultipleKeypresses(this.keyParseState, input);
+    const [keys, newState] = parseMultipleKeypresses(this.keyParseState, input, {
+      splitAmbiguousEscapeSequences: this.props.shouldSplitAmbiguousEscapeSequences?.() ?? false
+    });
     this.keyParseState = newState;
 
     // Process ALL keys in a SINGLE discreteUpdates call to prevent

@@ -9,9 +9,22 @@
 import { C0, ESC_TYPE, isEscFinal } from './ansi.js'
 import { isCSIFinal, isCSIIntermediate, isCSIParam } from './csi.js'
 
+export type EscapeSequenceFamily =
+  | 'escape'
+  | 'csi'
+  | 'ss3'
+  | 'osc'
+  | 'dcs'
+  | 'apc'
+
 export type Token =
   | { type: 'text'; value: string }
-  | { type: 'sequence'; value: string }
+  | {
+      type: 'sequence'
+      value: string
+      /** ANSI 序列族；调用方可据此区分含糊的 Meta 输入与结构化终端序列。 */
+      family: EscapeSequenceFamily
+    }
 
 type State =
   | 'ground'
@@ -96,6 +109,13 @@ type InternalState = {
   buffer: string
 }
 
+function sequenceFamily(state: State): EscapeSequenceFamily {
+  if (state === 'ground') {
+    throw new Error('无法为普通文本状态生成 ANSI 序列族')
+  }
+  return state === 'escapeIntermediate' ? 'escape' : state
+}
+
 function tokenize(
   input: string,
   initialState: State,
@@ -126,7 +146,11 @@ function tokenize(
 
   const emitSequence = (seq: string): void => {
     if (seq) {
-      tokens.push({ type: 'sequence', value: seq })
+      tokens.push({
+        type: 'sequence',
+        value: seq,
+        family: sequenceFamily(result.state),
+      })
     }
     result.state = 'ground'
     textStart = i
@@ -308,7 +332,13 @@ function tokenize(
   } else if (flush) {
     // Force output incomplete sequence
     const remaining = data.slice(seqStart)
-    if (remaining) tokens.push({ type: 'sequence', value: remaining })
+    if (remaining) {
+      tokens.push({
+        type: 'sequence',
+        value: remaining,
+        family: sequenceFamily(result.state),
+      })
+    }
     result.state = 'ground'
   } else {
     // Buffer incomplete sequence for next call
