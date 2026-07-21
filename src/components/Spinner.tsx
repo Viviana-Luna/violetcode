@@ -21,7 +21,7 @@ import type { Task } from '../utils/tasks.js';
 import { useAppState } from '../state/AppState.js';
 import { useTerminalSize } from '../hooks/useTerminalSize.js';
 import { stringWidth } from '../ink/stringWidth.js';
-import { getSpinnerFrames, type SpinnerMode } from './Spinner/index.js';
+import { getSpinnerFrames, getSpinnerModeText, type SpinnerMode } from './Spinner/index.js';
 import { SpinnerAnimationRow } from './Spinner/SpinnerAnimationRow.js';
 import { useSettings } from '../hooks/useSettings.js';
 import { isInProcessTeammateTask } from '../tasks/InProcessTeammateTask/types.js';
@@ -164,7 +164,7 @@ function SpinnerWithVerbInner({
   const [randomVerb] = useState(() => sample(getSpinnerVerbs()));
 
   // Leader's own verb (always the leader's, regardless of who is foregrounded)
-  const leaderVerb = overrideMessage ?? currentTodo?.activeForm ?? currentTodo?.subject ?? randomVerb;
+  const leaderVerb = overrideMessage ?? currentTodo?.activeForm ?? currentTodo?.subject ?? getSpinnerModeText(mode);
   const effectiveVerb = foregroundedTeammate && !foregroundedTeammate.isIdle ? foregroundedTeammate.spinnerVerb ?? randomVerb : leaderVerb;
   const message = effectiveVerb + '…';
 
@@ -222,7 +222,7 @@ function SpinnerWithVerbInner({
 
   // When leader is idle but teammates are running (and we're viewing the leader),
   // show a static dim idle display instead of the animated spinner — otherwise
-  // useStalledAnimation detects no new tokens after 3s and turns the spinner red.
+  // useStalledAnimation would flag a false "仍在等待" state once tokens stop.
   if (leaderIsIdle && hasRunningTeammates && !foregroundedTeammate) {
     return <Box flexDirection="column" width="100%" alignItems="flex-start">
         <Box flexDirection="row" flexWrap="wrap" marginTop={1} width="100%">

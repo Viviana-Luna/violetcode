@@ -120,7 +120,7 @@ export function SpinnerAnimationRow({
 
   // Suppress stall detection when leader is idle — responseLengthRef and
   // hasActiveTools both track leader state. When viewing an active teammate
-  // while leader is idle, they'd otherwise flag a false stall after 3s.
+  // while leader is idle, they'd otherwise flag a false "仍在等待" state.
   // Treating leaderIsIdle like hasActiveTools resets the stall timer.
   const {
     isStalled
@@ -132,7 +132,7 @@ export function SpinnerAnimationRow({
   const glimmerMessageWidth = useMemo(() => stringWidth(message), [message]);
   const cycleLength = glimmerMessageWidth + 20;
   const cyclePosition = Math.floor(time / glimmerSpeed);
-  const glimmerIndex = reducedMotion ? -100 : isStalled ? -100 : mode === 'requesting' ? cyclePosition % cycleLength - 10 : glimmerMessageWidth + 10 - cyclePosition % cycleLength;
+  const glimmerIndex = reducedMotion ? -100 : mode === 'requesting' ? cyclePosition % cycleLength - 10 : glimmerMessageWidth + 10 - cyclePosition % cycleLength;
   const flashOpacity = reducedMotion ? 0 : mode === 'tool-use' ? (Math.sin(time / 1000 * Math.PI) + 1) / 2 : 0;
 
   // === Token counter animation (smooth increment, driven by 50ms clock) ===
@@ -197,7 +197,10 @@ export function SpinnerAnimationRow({
   const thinkingShimmerColor = toRGBColor(interpolateColor(THINKING_INACTIVE, THINKING_INACTIVE_SHIMMER, thinkingOpacity));
 
   // === Build status parts ===
-  const parts = [...(spinnerSuffix ? [<Text dimColor key="suffix">
+  // 无新 Token 超过 15 秒时追加低权重“仍在等待”，符号与主文案保持品牌色。
+  const parts = [...(isStalled ? [<Text dimColor key="stalled">
+            仍在等待
+          </Text>] : []), ...(spinnerSuffix ? [<Text dimColor key="suffix">
             {spinnerSuffix}
           </Text>] : []), ...(showTimer ? [<Text dimColor key="elapsedTime">
             {timerText}

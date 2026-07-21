@@ -8,6 +8,7 @@ export { useStalledAnimation } from './useStalledAnimation.js'
 export {
   getDefaultCharacters,
   getSpinnerFrames,
+  getSpinnerModeText,
   interpolateColor,
 } from './utils.js'
 // Teammate components are NOT exported here - use dynamic require() to enable dead code elimination

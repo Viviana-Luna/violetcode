@@ -1,8 +1,12 @@
 import { useRef } from 'react'
 
-// Hook to handle the transition to red when tokens stop flowing.
+// Hook for the low-weight "still waiting" state when tokens stop flowing.
 // Driven by the parent's animation clock time instead of independent intervals,
 // so it slows down when the terminal is blurred.
+// 无新 Token 15 秒后才进入等待态：DeepSeek、火山方舟等 Provider 常见的
+// 首 Token 延迟远超旧阈值（3 秒）；等待态只追加低权重提示，不使用错误红。
+const STALL_THRESHOLD_MS = 15_000
+
 export function useStalledAnimation(
   time: number,
   currentResponseLength: number,
@@ -38,10 +42,9 @@ export function useStalledAnimation(
   }
 
   // Calculate stalled intensity based on time since last token
-  // Start showing red after 3 seconds of no new tokens (only when no tools are active)
-  const isStalled = timeSinceLastToken > 3000 && !hasActiveTools
+  const isStalled = timeSinceLastToken > STALL_THRESHOLD_MS && !hasActiveTools
   const intensity = isStalled
-    ? Math.min((timeSinceLastToken - 3000) / 2000, 1) // Fade over 2 seconds
+    ? Math.min((timeSinceLastToken - STALL_THRESHOLD_MS) / 2000, 1) // Fade over 2 seconds
     : 0
 
   // Smooth intensity transition driven by animation frame ticks

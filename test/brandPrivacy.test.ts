@@ -41,6 +41,39 @@ describe('VioletCode 品牌边界', () => {
     expect(spinner).toContain('<Text color="brand">✥</Text>')
   })
 
+  test('主状态文案按真实模式映射，默认动词为少量中文过程文案', async () => {
+    const { getSpinnerModeText } = await import(
+      '../src/components/Spinner/utils.js'
+    )
+    expect(getSpinnerModeText('requesting')).toBe('请求连接')
+    expect(getSpinnerModeText('thinking')).toBe('模型思考')
+    expect(getSpinnerModeText('responding')).toBe('生成回复')
+    expect(getSpinnerModeText('tool-input')).toBe('准备工具')
+    expect(getSpinnerModeText('tool-use')).toBe('执行工具')
+
+    const { SPINNER_VERBS } = await import('../src/constants/spinnerVerbs.js')
+    expect(SPINNER_VERBS.length).toBeLessThanOrEqual(20)
+    for (const verb of SPINNER_VERBS) {
+      expect(verb).toMatch(/^[\u4e00-\u9fff]+$/)
+    }
+    expect(SPINNER_VERBS).not.toContain('Clauding')
+
+    const verbsSource = await source('src/constants/spinnerVerbs.ts')
+    expect(verbsSource).not.toContain('Clauding')
+  })
+
+  test('无新 Token 15 秒后才进入低权重等待态，不使用错误红', async () => {
+    const stalled = await source(
+      'src/components/Spinner/useStalledAnimation.ts',
+    )
+    const row = await source('src/components/Spinner/SpinnerAnimationRow.tsx')
+
+    expect(stalled).toContain('STALL_THRESHOLD_MS = 15_000')
+    expect(stalled).not.toMatch(/timeSinceLastToken > 3000/)
+    expect(row).toContain('仍在等待')
+    expect(row).not.toContain('isStalled ? -100')
+  })
+
   test('产品源码与公开文档不再使用旧产品名称', async () => {
     const files = [
       'src/constants/prompts.ts',
