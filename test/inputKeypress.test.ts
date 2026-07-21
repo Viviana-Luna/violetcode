@@ -4,6 +4,7 @@ import {
   INITIAL_STATE,
   parseMultipleKeypresses,
   type KeyParseOptions,
+  type KeyParseState,
   type ParsedInput,
   type ParsedKey,
 } from '../src/ink/parse-keypress.js'
@@ -27,6 +28,32 @@ function parseInput(
     input,
     options,
   )
+  return events
+}
+
+function parseInputChunks(
+  chunks: string[],
+  options?: KeyParseOptions,
+  flush = false,
+): ParsedInput[] {
+  let state: KeyParseState = { ...INITIAL_STATE }
+  const events: ParsedInput[] = []
+
+  for (const chunk of chunks) {
+    const [nextEvents, nextState] = parseMultipleKeypresses(
+      state,
+      chunk,
+      options,
+    )
+    events.push(...nextEvents)
+    state = nextState
+  }
+
+  if (flush) {
+    const [nextEvents] = parseMultipleKeypresses(state, null, options)
+    events.push(...nextEvents)
+  }
+
   return events
 }
 
@@ -62,11 +89,57 @@ describe('Escape 输入与 ANSI 序列分流', () => {
     ).toBe('/exit')
   })
 
+  test('查询期间跨 chunk 的 Escape 与后续文本都不会丢失', () => {
+    const events = parseInputChunks(
+      ['\x1b', '/exit'],
+      SPLIT_AMBIGUOUS_ESCAPE,
+    )
+
+    expect(events[0]).toMatchObject({ kind: 'key', name: 'escape' })
+    expect(
+      events
+        .slice(1)
+        .map(event => event.sequence)
+        .join(''),
+    ).toBe('/exit')
+  })
+
+  test('查询期间 timeout flush 仍按 Escape 与后续文本解释', () => {
+    const events = parseInputChunks(
+      ['\x1b', '/'],
+      SPLIT_AMBIGUOUS_ESCAPE,
+      true,
+    )
+
+    expect(events).toHaveLength(2)
+    expect(events[0]).toMatchObject({ kind: 'key', name: 'escape' })
+    expect(events[1]).toMatchObject({ kind: 'key', sequence: '/' })
+  })
+
+  test('单独 Escape 在 timeout flush 后仍是取消键', () => {
+    const events = parseInputChunks(
+      ['\x1b'],
+      SPLIT_AMBIGUOUS_ESCAPE,
+      true,
+    )
+
+    expect(events).toHaveLength(1)
+    expect(events[0]).toMatchObject({ kind: 'key', name: 'escape' })
+  })
+
   test('未启用歧义处理时仍保留 Alt/Meta 组合键语义', () => {
     const events = parseInput('\x1ba')
 
     expect(events).toHaveLength(1)
     expect(events[0]).toMatchObject({
+      kind: 'key',
+      meta: true,
+      sequence: '\x1ba',
+    })
+
+    const crossChunkEvents = parseInputChunks(['\x1b', 'a'])
+    expect(crossChunkEvents).toHaveLength(1)
+    expect(crossChunkEvents[0]).toMatchObject({
       kind: 'key',
       meta: true,
       sequence: '\x1ba',
@@ -140,23 +213,80 @@ describe('Escape 输入与 ANSI 序列分流', () => {
     })
   })
 
-  test('跨 chunk 的结构化序列等待完成后再解析', () => {
-    const [firstEvents, pendingState] = parseMultipleKeypresses(
-      { ...INITIAL_STATE },
-      '\x1b',
+  test('跨 chunk 的 CSI 与 SS3 序列等待完成后再解析', () => {
+    const focusOut = parseInputChunks(
+      ['\x1b', '[O'],
       SPLIT_AMBIGUOUS_ESCAPE,
     )
-    const [secondEvents] = parseMultipleKeypresses(
-      pendingState,
-      '[O',
+    const arrowDown = parseInputChunks(
+      ['\x1b', '[B'],
+      SPLIT_AMBIGUOUS_ESCAPE,
+    )
+    const f1 = parseInputChunks(['\x1b', 'OP'], SPLIT_AMBIGUOUS_ESCAPE)
+
+    expect(focusOut).toHaveLength(1)
+    expect(focusOut[0]).toMatchObject({
+      kind: 'key',
+      sequence: '\x1b[O',
+    })
+    expect(arrowDown).toHaveLength(1)
+    expect(arrowDown[0]).toMatchObject({
+      kind: 'key',
+      name: 'down',
+      sequence: '\x1b[B',
+    })
+    expect(f1).toHaveLength(1)
+    expect(f1[0]).toMatchObject({
+      kind: 'key',
+      name: 'f1',
+      sequence: '\x1bOP',
+    })
+  })
+
+  test('跨 chunk 的 OSC、DCS 与 APC 序列保持完整', () => {
+    const osc = parseInputChunks(
+      ['\x1b', ']11;rgb:0000/0000/0000\x07'],
+      SPLIT_AMBIGUOUS_ESCAPE,
+    )
+    const xtversion = parseInputChunks(
+      ['\x1b', 'P>|xterm.js(5.5.0)\x1b\\'],
+      SPLIT_AMBIGUOUS_ESCAPE,
+    )
+    const apc = parseInputChunks(
+      ['\x1b', '_application-message\x1b\\'],
       SPLIT_AMBIGUOUS_ESCAPE,
     )
 
-    expect(firstEvents).toEqual([])
-    expect(secondEvents).toHaveLength(1)
-    expect(secondEvents[0]).toMatchObject({
+    expect(osc).toHaveLength(1)
+    expect(osc[0]).toMatchObject({
+      kind: 'response',
+      sequence: '\x1b]11;rgb:0000/0000/0000\x07',
+      response: { type: 'osc', code: 11 },
+    })
+    expect(xtversion).toHaveLength(1)
+    expect(xtversion[0]).toMatchObject({
+      kind: 'response',
+      sequence: '\x1bP>|xterm.js(5.5.0)\x1b\\',
+      response: { type: 'xtversion', name: 'xterm.js(5.5.0)' },
+    })
+    expect(apc).toHaveLength(1)
+    expect(apc[0]).toMatchObject({
       kind: 'key',
-      sequence: '\x1b[O',
+      sequence: '\x1b_application-message\x1b\\',
+    })
+  })
+
+  test('括号粘贴中的 Escape 序列保持为原始文本', () => {
+    const events = parseInputChunks(
+      ['\x1b[200~', '\x1b/exit\x1b[O', '\x1b[201~'],
+      SPLIT_AMBIGUOUS_ESCAPE,
+    )
+
+    expect(events).toHaveLength(1)
+    expect(events[0]).toMatchObject({
+      kind: 'key',
+      isPasted: true,
+      sequence: '\x1b/exit\x1b[O',
     })
   })
 })

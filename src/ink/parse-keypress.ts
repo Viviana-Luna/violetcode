@@ -229,10 +229,7 @@ export function parseMultipleKeypresses(
   const isFlush = input === null
   const inputString = isFlush ? '' : inputToString(input)
   const splitAmbiguousEscapeSequences =
-    options?.splitAmbiguousEscapeSequences === true &&
-    !isFlush &&
-    !prevState.incomplete &&
-    prevState.mode !== 'IN_PASTE'
+    options?.splitAmbiguousEscapeSequences === true
 
   // Get or create tokenizer
   const tokenizer = prevState._tokenizer ?? createTokenizer({ x10Mouse: true })
@@ -266,10 +263,10 @@ export function parseMultipleKeypresses(
         token.value.length > 1 &&
         token.value.charCodeAt(0) === 0x1b
       ) {
-        // 通用 ESC 序列与 Meta 输入在协议上无法区分。Bun 可能把滞后的
-        // Escape 取消操作和随后输入的文本合并到同一 chunk；这里保留两次
-        // 用户操作，避免 Escape 丢失且部分文本被吞成 Meta 键。结构化 ANSI
-        // 序列族不会进入此分支，因此焦点、导航和终端响应仍保持原子性。
+        // 通用 ESC 序列与 Meta 输入在协议上无法区分。Tokenizer 会先跨
+        // chunk 拼出完整序列，再由 family 区分含糊输入与结构化 ANSI 序列；
+        // 因此这里不能依据 chunk 边界或 flush 时机改变解释结果。粘贴内容已
+        // 在前置分支处理，焦点、导航和终端响应等结构化序列也不会进入此处。
         keys.push(parseKeypress('\x1b'))
         keys.push(parseKeypress(token.value.slice(1)))
       } else {
