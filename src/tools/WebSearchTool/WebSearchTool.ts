@@ -10,6 +10,7 @@ import { lazySchema } from '../../utils/lazySchema.js'
 import { logError } from '../../utils/log.js'
 import { createUserMessage } from '../../utils/messages.js'
 import { getWebSearchStrategyForModel } from '../../utils/model/providerDefinitions.js'
+import { getAPIProvider, getAPIProviderDisplayName } from '../../utils/model/providers.js'
 import { jsonParse } from '../../utils/slowOperations.js'
 import { asSystemPrompt } from '../../utils/systemPromptType.js'
 import { getWebSearchPrompt, WEB_SEARCH_TOOL_NAME } from './prompt.js'
@@ -96,6 +97,7 @@ function makeOutputFromSearchResponse(
   result: BetaContentBlock[],
   query: string,
   durationSeconds: number,
+  providerLabel: string,
 ): Output {
   // The result is a sequence of these blocks:
   // - text to start -- always?
@@ -153,7 +155,7 @@ function makeOutputFromSearchResponse(
 
   return {
     query,
-    provider: 'DeepSeek',
+    provider: providerLabel,
     results,
     durationSeconds,
   }
@@ -450,6 +452,7 @@ export const WebSearchTool = buildTool({
       allContentBlocks,
       query,
       durationSeconds,
+      getAPIProviderDisplayName(getAPIProvider(context.options.mainLoopModel)),
     )
     return { data }
   },
